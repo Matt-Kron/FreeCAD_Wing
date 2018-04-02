@@ -1,0 +1,8 @@
+# file types to ignore
+
+*.pyc
+*.e5g
+*.e4p
+/svgde/
+/\.eric6project/
+Capture du 2018-04-02 01-37-28.png
