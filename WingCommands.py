@@ -1,13 +1,5 @@
 import FreeCAD, FreeCADGui
-import Wing
 import Nervures, math
-
-def createWing():
-	a=FreeCAD.ActiveDocument.addObject("Part::FeaturePython","Wing")
-	Wing.Aile(a)
-	a.ViewObject.Proxy=0 # just set it to something different from None (this assignment is needed to run an internal notification)
-	FreeCAD.ActiveDocument.recompute()
-	FreeCADGui.SendMsgToActiveView("ViewFit")
 
 def createNervures():
 #	DOC = FreeCAD.ActiveDocument.Name
@@ -22,4 +14,9 @@ def createNervures():
 #	Nervures.Sections(DOC,OBJ,NB_NERVURES,ECARTEMENT_NERVURE,NOM_SECTION,Normale)
 #	Nervures.Extruder(DOC,OBJ,NB_NERVURES,NOM_SECTION,Normale,Longueur)
 	a=FreeCAD.ActiveDocument.addObject("Part::FeaturePython","Nervures")
+	Nervures.Nervures(a)
+	a.SlicedObject = FreeCAD.ActiveDocument.Wing
+	Nervures.ViewProviderNervures(a.ViewObject)
+	FreeCAD.ActiveDocument.recompute()
+	FreeCADGui.SendMsgToActiveView("ViewFit")
 	

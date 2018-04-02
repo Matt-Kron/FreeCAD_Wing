@@ -10,9 +10,9 @@
    xmlns:xlink="http://www.w3.org/1999/xlink"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   width="48"
-   height="48"
-   viewBox="0 0 12.7 12.700001"
+   width="64"
+   height="64"
+   viewBox="0 0 16.933328 16.933329"
    version="1.1"
    id="svg8"
    inkscape:version="0.92.2 (unknown)"
@@ -27,7 +27,7 @@
          offset="0"
          id="stop4545" />
       <stop
-         style="stop-color:#0000fe;stop-opacity:0;"
+         style="stop-color:#f6fffe;stop-opacity:0"
          offset="1"
          id="stop4547" />
     </linearGradient>
@@ -37,8 +37,8 @@
        id="linearGradient4543"
        x1="141.93005"
        y1="156.58185"
-       x2="95.438988"
-       y2="230.4762"
+       x2="80.122215"
+       y2="271.13086"
        gradientUnits="userSpaceOnUse" />
   </defs>
   <sodipodi:namedview
@@ -48,11 +48,11 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="1.0005561"
-     inkscape:cx="-24.000678"
-     inkscape:cy="101.05731"
+     inkscape:zoom="8.0044488"
+     inkscape:cx="-4.4018541"
+     inkscape:cy="25.196614"
      inkscape:document-units="mm"
-     inkscape:current-layer="layer1"
+     inkscape:current-layer="g4574"
      showgrid="false"
      inkscape:window-width="1881"
      inkscape:window-height="1056"
@@ -63,7 +63,8 @@
      fit-margin-left="5"
      fit-margin-right="5"
      fit-margin-bottom="5"
-     units="px" />
+     units="px"
+     inkscape:snap-global="false" />
   <metadata
      id="metadata5">
     <rdf:RDF>
@@ -80,24 +81,24 @@
      inkscape:label="Calque 1"
      inkscape:groupmode="layer"
      id="layer1"
-     transform="translate(-21.874304,-219.12272)">
+     transform="translate(-21.874304,-214.88944)">
     <g
        id="g4574"
-       transform="matrix(0.06662629,0,0,0.06714217,21.019,213.89774)">
+       transform="matrix(0.0906386,0,0,0.13008901,20.515014,201.00817)">
       <path
          sodipodi:nodetypes="czc"
          inkscape:connector-curvature="0"
          id="path3720"
          d="m 99.825169,115.79126 c -34.611404,12.56167 -79.84093,38.01477 -75.102738,46.37126 4.738192,8.35649 46.772167,-24.18789 75.102738,-46.37126 z"
-         style="fill:none;fill-rule:evenodd;stroke:#ff0000;stroke-width:3.64878702;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+         style="fill:none;fill-rule:evenodd;stroke:#ff0000;stroke-width:5.66367361;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
       <path
          sodipodi:nodetypes="ccccc"
          inkscape:connector-curvature="0"
          id="path4535"
-         d="m 99.825166,115.79126 c 0,0 -78.280523,33.98701 -74.122785,46.08225 l 129.078869,66.52381 c 1.88988,6.4256 37.49174,-22.93404 37.49174,-22.93404 L 99.825166,115.79126"
+         d="m 98.366426,117.5699 c 0,0 -81.927373,36.01975 -71.934675,48.11499 L 153.6872,230.43005 c 5.90141,2.36014 38.58579,-24.96677 38.58579,-24.96677 L 98.731114,117.5699"
          style="fill:url(#linearGradient4543);fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:0.26458332;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
       <path
-         style="fill:none;fill-rule:evenodd;stroke:#ff0000;stroke-width:3.64878702;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         style="fill:none;fill-rule:evenodd;stroke:#ff0000;stroke-width:4.74275106;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
          d="m 192.27299,205.46328 c -17.1265,6.19281 -39.90799,19.07509 -37.56342,23.19477 2.34456,4.11969 23.54482,-12.25853 37.56342,-23.19477 z"
          id="path3726"
          inkscape:connector-curvature="0"
@@ -105,8 +106,9 @@
       <path
          inkscape:connector-curvature="0"
          id="path3728"
-         d="m 99.825168,115.79126 92.447822,89.67202"
-         style="fill:none;fill-rule:evenodd;stroke:#ff0000;stroke-width:3.64878702;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+         d="m 97.272373,115.28308 95.365297,92.72111"
+         style="fill:none;fill-rule:evenodd;stroke:#ff0000;stroke-width:5.6636734;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         sodipodi:nodetypes="cc" />
     </g>
   </g>
 </svg>
