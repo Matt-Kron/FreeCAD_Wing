@@ -749,8 +749,8 @@ class WrapLeadingEdge:
 		obj.addProperty("App::PropertyBool", "MakeLoft", "WrapLeadingEdge", "Make the loft from the root wrap and tip wrap wires").MakeLoft = False
 		obj.addProperty("App::PropertyLink","Loft","WrapLeadingEdge","Name of the wrapped leading edge's loft", 1)
 		self.LoftName = ""
-		self.RootPortion = None
-		self.ShiftedRootPortion = None
+#		self.RootPortion = None
+#		self.ShiftedRootPortion = None
 		self.RootWrap = None
 #		self.TipPortion = None
 #		self.ShiftedTipPortion = None

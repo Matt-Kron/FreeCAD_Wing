@@ -41,14 +41,13 @@ class _CommandWing():
 
 	def __init__(self,name='WingWorkbench',icon='Aile-icon.svg',command='',modul=''):
 #		FreeCAD.Console.PrintMessage("_CommandWing.__init__ starting...\n")
-		self.name=name
-		self.icon= iconPath + icon
-		self.command=command
-		self.modul=modul
+		self.name = name
+		self.icon = iconPath + icon
+		self.command = command
+		self.modul = modul
 
 	def GetResources(self): 
 		return {'Pixmap' : self.icon, 'MenuText': self.name, 'ToolTip': 'Add ' + self.name} 
-
 
 	def IsActive(self):
 		if FreeCADGui.ActiveDocument:
@@ -96,24 +95,24 @@ class WingWorkbench(Workbench):
 		self.appendToolbar("Wing", ["Wing_Wing","Wing_Nervures","Wing_Rod", "Wing_WrapLeadingEdge"])
 		self.appendMenu("Wing", ["Wing_Wing","Wing_Nervures","Wing_Rod", "Wing_WrapLeadingEdge"])
 		Log ("Loading Wing module done")
- 
+
 	def Activated(self):
 		"This function is executed when the workbench is activated"
-		FreeCAD.Console.PrintMessage ("MyWorkbench.Activated()\n")
+		FreeCAD.Console.PrintMessage ("WingWorkbench.Activated()\n")
 		return
- 
+
 	def Deactivated(self):
 		"This function is executed when the workbench is deactivated"
-		FreeCAD.Console.PrintMessage ("MyWorkbench.Deactivated()\n")
+		FreeCAD.Console.PrintMessage ("WingWorkbench.Deactivated()\n")
 		return
- 
+
 	def ContextMenu(self, recipient):
 		"This is executed whenever the user right-clicks on screen"
 		# "recipient" will be either "view" or "tree"
 		#self.appendContextMenu("My commands",self.list) # add commands to the context menu
- 
+
 	def GetClassName(self): 
 		# this function is mandatory if this is a full python workbench
 		return "Gui::PythonWorkbench"
- 
+
 FreeCADGui.addWorkbench(WingWorkbench())
