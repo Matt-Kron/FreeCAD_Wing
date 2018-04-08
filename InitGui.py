@@ -76,7 +76,9 @@ class _CommandWing():
 		return
 
 if FreeCAD.GuiUp:
+	FreeCADGui.addCommand('Wing_ImportProfil',_CommandWing("Profile",'ImportProfile-icon.svg',"Wing.createProfile()","Wing"))
 	FreeCADGui.addCommand('Wing_Wing',_CommandWing("Wing",'Aile-icon.svg',"Wing.createWing()","Wing"))
+	FreeCADGui.addCommand('Wing_CoordSys',_CommandWing("Axis",'WF_Axes.svg',"Wing.createCoordSys()","Wing"))
 	FreeCADGui.addCommand('Wing_Nervures',_CommandWing("Nervures",'Nervures-icon.svg',"Nervures.createNervures()","Nervures"))
 	FreeCADGui.addCommand('Wing_Rod',_CommandWing("Rod",'Rod-icon.svg',"Wing.createRod()","Wing"))
 	FreeCADGui.addCommand('Wing_WrapLeadingEdge', _CommandWing("WrapLeadingEdge", "WrapLeadingEdge-icon.svg", "Wing.createWrapLeadingEdge()", "Wing"))
@@ -92,8 +94,8 @@ class WingWorkbench(Workbench):
 	def Initialize(self):
 		"This function is executed when FreeCAD starts"
 
-		self.appendToolbar("Wing", ["Wing_Wing","Wing_Nervures","Wing_Rod", "Wing_WrapLeadingEdge"])
-		self.appendMenu("Wing", ["Wing_Wing","Wing_Nervures","Wing_Rod", "Wing_WrapLeadingEdge"])
+		self.appendToolbar("Wing", ["Wing_ImportProfil", "Wing_Wing", "Wing_CoordSys", "Wing_Nervures", "Wing_Rod", "Wing_WrapLeadingEdge"])
+		self.appendMenu("Wing", ["Wing_ImportProfil", "Wing_Wing", "Wing_CoordSys", "Wing_Nervures", "Wing_Rod", "Wing_WrapLeadingEdge"])
 		Log ("Loading Wing module done")
 
 	def Activated(self):
