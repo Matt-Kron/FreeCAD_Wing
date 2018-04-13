@@ -1,6 +1,7 @@
 import os, re
 import FreeCAD
 from PySide import QtGui
+from FreeCAD import Vector
 
 ModeVerbose = True
 VecNul = FreeCAD.Vector(0,0,0)
@@ -74,19 +75,31 @@ def normalVec(wire, index):
 		vecnorm = VecNul
 	return vecnorm
 	
-def tangentVec(wire, index):
+def tangentVec(wire, index, mtype):
+	i = 0
+	j = -1
+	if mtype == "Previous":
+		i = 1
+		j = 0
+	elif mtype == "Next":
+		i = 0
+		j = 1
+	elif mtype == "PreviousAndNext":
+		i = 1
+		j = 1
+#	msgCsl("i: " + str(i) + "j: " + str(j) + "type: " + mtype)
 	if len(wire.Points) >= 3:
-		vectan = PtsToVec(wire.Shape.Vertexes[index - 1].Point, wire.Shape.Vertexes[index + 1].Point)
+		vectan = PtsToVec(wire.Shape.Vertexes[index - i].Point, wire.Shape.Vertexes[index + j].Point)
 		vectan.normalize()
 	elif len(wire.Points) == 2:
-		vectan = PtsToVec(wire.Shape.Vertexes[index].Point, wire.Shape.Vertexes[index + 1].Point)
+		vectan = PtsToVec(wire.Shape.Vertexes[index].Point, wire.Shape.Vertexes[index - 1].Point)
 		vectan.normalize()
 	else:
 		vectan = VecNul
 	return vectan
 
 def curveVec(wire, index):
-	veccurv = tangentVec(wire, index).cross(normalVec(wire, index))
+	veccurv = tangentVec(wire, index, "PreviousAndNext").cross(normalVec(wire, index))
 	return veccurv
 	
 def DiscretizedPoint(wire, value):
@@ -99,7 +112,7 @@ def DiscretizedPoint(wire, value):
 		pt = wire.Shape.Vertexes[int(value)].Point
 	return pt	
 
-def cutWire(wire, start, end):
+def cutWire(wire, start, end):  # start and end are represent wire.Vertexes[start or end] and intermediate point in case of float
 	intstart = int(start)
 	fracstart = int((round(start, 2) - int(start))*100)
 	intend = int(end)
@@ -118,4 +131,33 @@ def cutWire(wire, start, end):
 	ptsleft.append(DiscretizedPoint(wire, end))  # next point is 'end' point or the intermediate point of 'last' edge
 	for i in range(intend + 1, len(wire.Points), + 1):  # first point of the loop is always the following point of 'end' point
 		ptsleft.append(wire.Shape.Vertexes[i].Point)
-	return [ptsleft, ptsright]
+	return ptsleft, ptsright
+	
+def  intersecLinePlane(A,B, plane):
+    """ Return the intersection between a line A,B and a planar face.
+    """
+    N = plane.normalAt(0,0)
+    a, b, c = N.x, N.y, N.z
+    p1 = plane.CenterOfMass
+    d = -((a * p1.x) + (b * p1.y) + (c * p1.z))
+    ax, ay, az = A.x, A.y, A.z
+    bx, by, bz = B.x, B.y, B.z
+    ux, uy, uz = bx - ax, by - ay, bz - az
+    U = Vector(ux, uy, uz)
+    
+    if U.dot(N) == 0.0:
+        # if A belongs to P : the full Line L is included in the Plane
+        if (a * ax) + (b * ay) + (c * az) + d == 0.0:
+            return A
+        # if not the Plane and line are paralell without intersection
+        else:
+            return None
+    else:
+        if ( a * ux + b * uy + c *uz ) == 0.0:
+            return None
+        k = -1 * (a * ax + b * ay + c * az  + d) / ( a * ux + b * uy + c *uz )
+        tx = ax + k * ux 
+        ty = ay + k * uy
+        tz = az + k * uz
+        T = Vector(tx, ty, tz)
+        return T
