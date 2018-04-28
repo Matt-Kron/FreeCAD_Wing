@@ -1023,8 +1023,10 @@ class Section:
 		slice = Part.Compound(fp.SlicedObject.Shape.slice(normVec.normalize(), fp.Offset))
 #		msgCsl("normVec: " + format(normVec))
 		pts = []
-		for i in range(0, len(slice.Vertexes), +1):
-			pts.append(slice.Vertexes[i].Point)
+		for e in slice.Edges: #range(0, len(slice.Edges), +1):
+			pts.append(e.firstVertex().Point)
+#		for i in range(0, len(slice.Vertexes), +1):
+#			pts.append(slice.Vertexes[i].Point)
 #			msgCsl("points i: " + format(pts[i]))
 		fp.Section = Draft.makeWire(pts, True, False)
 		fp.Section.Label = "CutWire"
@@ -1035,8 +1037,8 @@ class Section:
 		if len(fp.CutPlane.Shape.Edges) == 0: return
 		slice = Part.Compound(fp.SlicedObject.Shape.slice(self.updatePlane(fp, fp.Offset).normalize(), fp.Offset))
 		pts = []
-		for i in range(0, len(slice.Vertexes), +1):
-			pts.append(slice.Vertexes[i].Point)
+		for e in slice.Edges:
+			pts.append(e.firstVertex().Point)
 		fp.Section.Points = pts
 		del slice		
 
