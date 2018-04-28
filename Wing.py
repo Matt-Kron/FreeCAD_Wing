@@ -5,7 +5,9 @@
 #  
 #  Copyright 2018 Matthieu Carron
 #  this file is based on the code and the ideas
-#  of the macro AIRFOIL IMPORT & SCALE v2.1 and Animation module of microelly
+#  of the macro AIRFOIL IMPORT & SCALE v2.1 and other modules like 
+# 		Animation module of microelly
+#		WorkFeature, Assembly2
 #  
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -28,7 +30,8 @@
 __title__="FreeCAD Wing Toolkit"
 __author__ = "Matthieu Carron"
 
-import os
+import os, sys
+sys.path.append("/usr/lib/freecad/lib/")
 #from PySide import QtGui
 import FreeCAD, FreeCADGui, Part, Draft
 from FreeCAD import Vector, Rotation, Placement
@@ -113,6 +116,8 @@ class Profile:
 		for p in points:
 			p.x = p.x * e
 			p.y = p.y * e
+		# delete last point if it's the same as first one
+		if points[0].sub(points[len(points)-1]).Length <= 1.e-14: points.remove([len(points)-1])
 		fp.Points = points
 		wireP = Part.makePolygon(fp.Points, True)
 		wire = Draft.makeWire(wireP, True, False)
@@ -260,30 +265,12 @@ class CoordSys:
 		obj.Normal.Label = "Normal"
 		obj.Bend.Label = "Bend"
 		self.pName = ""
-		self.NewOrigin = VecNul
-		self.ObjectOk = False
-		self.ObjectOrigin = VecNul
-		self.ObjectCenterOfMass = VecNul
 		obj.CenterType = "Vertexes"
 		obj.Direction = "Edge"
 		obj.Proxy = self
 
 	def execute(self, fp):
 		msgCsl("class " + self.__class__.__name__ + ", execute")
-
-	def __getstate__(self):
-		state = {}
-		state["NewOrigin"] = list(self.NewOrigin)
-		state["ObjectOrigin"] = list(self.ObjectOrigin)
-		state["ObjectCenterOfMass"] = list(self.ObjectCenterOfMass)
-		return state
-
-	def __setstate__(self, state):
-		self.NewOrigin = Vector(tuple( i for i in state["NewOrigin"]))
-		self.ObjectOrigin = Vector(tuple( i for i in state["ObjectOrigin"]))
-		self.ObjectCenterOfMass = Vector(tuple( i for i in state["ObjectCenterOfMass"]))
-		self.pName = ""
-		self.ObjectOk = False
 
 	def onChanged(self, fp, prop):
 		# Do something when a property has changed
@@ -294,85 +281,80 @@ class CoordSys:
 				if fp.LinkedObject != None:
 					if self.pName != fp.LinkedObject.Name:
 						self.pName = fp.LinkedObject.Name
-						self.updateRefFace(fp)
 						self.updatePlacement(fp)
 				else:
 					self.pName = ""
-					self.ObjectOk = False
-			elif hasattr(self, "ObjectOk"):
-				self.ObjectOk = False
 		if prop in ["CenterType","VertexNum", "Normal", "Direction", "Angle"]:
 #			msgCsl("CoordSys class property change: " + str(prop) + "  Type of property :" + str(fp.getTypeIdOfProperty(prop)))
 			self.updatePlacement(fp)
 
 	def updateRefFace(self, fp):
+		ObjectOk = False
 		if fp.LinkedObject.TypeId == "Part::Extrusion":
 			nb = len(fp.LinkedObject.Base.Shape.Edges)
 			mface = fp.LinkedObject.Shape.Faces[nb]
-			self.ObjectEdges = mface.Edges
-			self.ObjectCenterOfMass = mface.CenterOfMass
-			self.ObjectOrigin = fp.LinkedObject.Shape.Vertex1.Point
-			self.ObjectOk = True
-		if fp.LinkedObject.TypeId == "PartDesign::Pad":
-			self.ObjectEdges = fp.LinkedObject.Sketch.Shape.Edges
-			self.ObjectCenterOfMass = fp.LinkedObject.Sketch.Shape.CenterOfMass
-			self.ObjectOrigin = fp.LinkedObject.Sketch.Placement.Base
-			self.ObjectOk = True
+			ObjectEdges = mface.Edges
+			ObjectCenterOfMass = mface.CenterOfMass
+			ObjectOrigin = fp.LinkedObject.Shape.Vertex1.Point
+			ObjectOk = True
+		elif fp.LinkedObject.TypeId == "PartDesign::Pad":
+			ObjectEdges = fp.LinkedObject.OutList[0].Shape.Edges
+			ObjectCenterOfMass = fp.LinkedObject.OutList[0].Shape.CenterOfMass
+			ObjectOrigin = fp.LinkedObject.OutList[0].Placement.Base
+			ObjectOk = True
 		elif fp.LinkedObject.TypeId == "Part::Cylinder":
-			self.ObjectEdges = fp.LinkedObject.Shape.Face3.Edges
-			self.ObjectCenterOfMass = fp.LinkedObject.Shape.Face3.CenterOfMass
-			self.ObjectOrigin = self.ObjectCenterOfMass
-			self.ObjectOk = True
-		if fp.LinkedObject.TypeId == "Part::Box":
-			self.ObjectEdges = fp.LinkedObject.Shape.Face5.Edges
-			self.ObjectCenterOfMass = fp.LinkedObject.Shape.Face5.CenterOfMass
-			self.ObjectOrigin = fp.LinkedObject.Shape.Vertex2.Point
-			self.ObjectOk = True
+			ObjectEdges = fp.LinkedObject.Shape.Face3.Edges
+			ObjectCenterOfMass = fp.LinkedObject.Shape.Face3.CenterOfMass
+			ObjectOrigin = ObjectCenterOfMass
+			ObjectOk = True
+		elif fp.LinkedObject.TypeId == "Part::Box":
+			ObjectEdges = fp.LinkedObject.Shape.Face5.Edges
+			ObjectCenterOfMass = fp.LinkedObject.Shape.Face5.CenterOfMass
+			ObjectOrigin = fp.LinkedObject.Shape.Vertex2.Point
+			ObjectOk = True
+		return ObjectOk, ObjectEdges, ObjectCenterOfMass, ObjectOrigin
 
 	def updatePlacement(self, fp):
-		if hasattr(self, "ObjectOk") and hasattr(fp, "LinkedObject"):
-			if self.ObjectOk and fp.LinkedObject != None:
-				index = int(fp.VertexNum % len(self.ObjectEdges))
-				if fp.LinkedObject.TypeId == "PartDesign::Pad":
-					fp.LinkedObject.Sketch.Placement = fp.Tangent.Placement
-				else:
-					fp.LinkedObject.Placement = fp.Tangent.Placement
-				self.updateRefFace(fp)
-				Fract = (int((round(fp.VertexNum,2) - int(fp.VertexNum)) * 100) + 100) % 100
-#				msgCsl("Fract "+ str(Fract))
-				mEdge = self.ObjectEdges[index]
-				if Fract > 0:
-					Pts = mEdge.discretize(101)
-					Pt = Pts[Fract]  # Not Fract in order to have Y (Bend) local axis inward
-				else:
-					Pt = mEdge.valueAt(0) #mEdge.Length)
-				if fp.CenterType == "MassCenter":
-					self.NewOrigin = self.ObjectCenterOfMass
-					mBend = PtsToVec(self.NewOrigin,Pt)
-				else:
-					self.NewOrigin = Pt
-#					if fp.Direction == "Edge":
-#						mBend = self.ObjectEdges[int(fp.VertexNum)].tangentAt(0)
-#					else:
-					mBend = PtsToVec(self.NewOrigin, self.ObjectCenterOfMass)
-#				msgCsl("NewOrigin " + format(self.NewOrigin))
-				mTrans = PtsToVec(self.NewOrigin,self.ObjectOrigin)
-				if fp.CenterType == "Vertexes" and fp.Direction == "Edge":
-					vectan = self.ObjectEdges[index].tangentAt(mEdge.Length * Fract / 100) #PtsToVec(self.ObjectEdges[int(fp.VertexNum)].Start, self.ObjectEdges[int(fp.VertexNum)].End)
-#					vectan.multiply(-1)
-					mRot = Rotation(vectan, fp.Tangent.End.sub(fp.Tangent.Start))
-				else:
-					mRot = Rotation(mBend,fp.Bend.End.sub(fp.Bend.Start))
-				mPlacement2 = FreeCAD.Placement(mTrans,mRot,self.NewOrigin)
-				fp.LocalPlacement = mPlacement2
-				# Add rotation angle from CoordSys property
-				mPlacement2 = Placement(VecNul, Rotation(fp.Normal.End.sub(fp.Normal.Start), fp.Angle), fp.Tangent.Start)
-				fp.LocalPlacement = mPlacement2.multiply(fp.LocalPlacement)
-				if fp.LinkedObject.TypeId == "PartDesign::Pad":
-					fp.LinkedObject.Sketch.Placement = fp.LocalPlacement.multiply(fp.LinkedObject.Sketch.Placement)
-				else:
-					fp.LinkedObject.Placement = fp.LocalPlacement.multiply(fp.LinkedObject.Placement)
-#				msgCsl("LocalPlacement: " + format(fp.LocalPlacement))
+		if hasattr(fp, "LinkedObject"):
+			if fp.LinkedObject != None and hasattr(fp.LinkedObject.Shape, "Face1"):
+				ObjectOk, ObjectEdges, ObjectCenterOfMass, ObjectOrigin = self.updateRefFace(fp)
+				if ObjectOk:
+					index = int(fp.VertexNum % len(ObjectEdges))
+					if fp.LinkedObject.TypeId == "PartDesign::Pad":
+						fp.LinkedObject.OutList[0].Placement = fp.Tangent.Placement
+					else:
+						fp.LinkedObject.Placement = fp.Tangent.Placement
+					ObjectOk, ObjectEdges, ObjectCenterOfMass, ObjectOrigin = self.updateRefFace(fp)
+					Fract = int((round((round(fp.VertexNum,2) - int(fp.VertexNum)), 2) * 100 + 100)) % 100
+	#				msgCsl("Fract "+ str(Fract))
+					mEdge = ObjectEdges[index]
+					longueur = mEdge.LastParameter - mEdge.FirstParameter
+					if mEdge.Orientation == "Reversed": Fract = 100 - Fract #;msgCsl("reverse fract")
+					Pt = mEdge.Curve.value(longueur * (100 - Fract) / 100) #mEdge.discretize(101)
+					if fp.CenterType == "MassCenter":
+						NewOrigin = ObjectCenterOfMass
+						mBend = PtsToVec(NewOrigin,Pt)
+					else:
+						NewOrigin = Pt
+						mBend = PtsToVec(NewOrigin, ObjectCenterOfMass)
+	#				msgCsl("NewOrigin " + format(NewOrigin))
+					mTrans = PtsToVec(NewOrigin,ObjectOrigin)
+					if fp.CenterType == "Vertexes" and fp.Direction == "Edge":
+						vectan = mEdge.Curve.tangent(longueur * (100 - Fract) / 100)[0] #PtsToVec(self.ObjectEdges[int(fp.VertexNum)].Start, self.ObjectEdges[int(fp.VertexNum)].End)
+						if mEdge.Orientation == "Forward": vectan.multiply(-1)
+						mRot = Rotation(vectan, fp.Tangent.End.sub(fp.Tangent.Start))
+					else:
+						mRot = Rotation(mBend,fp.Bend.End.sub(fp.Bend.Start))
+					mPlacement2 = FreeCAD.Placement(mTrans,mRot,NewOrigin)
+					fp.LocalPlacement = mPlacement2
+					# Add rotation angle from CoordSys property
+					mPlacement2 = Placement(VecNul, Rotation(fp.Normal.End.sub(fp.Normal.Start), fp.Angle), fp.Tangent.Start)
+					fp.LocalPlacement = mPlacement2.multiply(fp.LocalPlacement)
+					if fp.LinkedObject.TypeId == "PartDesign::Pad":
+						fp.LinkedObject.OutList[0].Placement = fp.LocalPlacement.multiply(fp.LinkedObject.OutList[0].Placement)
+					else:
+						fp.LinkedObject.Placement = fp.LocalPlacement.multiply(fp.LinkedObject.Placement)
+	#				msgCsl("LocalPlacement: " + format(fp.LocalPlacement))
 
 class ViewProviderCoordSys(ViewProviderGeneric):
 
@@ -412,73 +394,41 @@ class Rod:
 		self.VecTipTangent = VecNul
 		self.VecTipCurvature = VecNul
 		self.VecDirRod = VecNul
-		self.VecRodEdge = VecNul
+#		self.VecRodEdge = VecNul
 		self.VecRodCenter = VecNul
 		self.ObjNameList = {"RootWire":"", "TipWire":"", "CoordSystem":""}
 		obj.TangentType = "Next"
 		obj.Proxy = self
 
 	def check(self, fp):
-		test = False
-		if hasattr(fp, "RootWire") and hasattr(fp, "TipWire") and hasattr(fp, "CoordSystem"):
-			if fp.RootWire != None and fp.TipWire != None and fp.CoordSystem != None:
+		test = {"Root" : False, "All" : False}
+		if hasattr(fp, "RootWire") and hasattr(fp, "CoordSystem"):
+			if fp.RootWire != None and fp.CoordSystem != None:
 				if hasattr(fp.RootWire, 'Shape') and hasattr(fp, "RootPoint"):
-					if hasattr(fp.TipWire, 'Shape') and hasattr(fp, "TipPoint"):
-						if len(fp.RootWire.Shape.Edges) > 0 and len(fp.TipWire.Shape.Edges) > 0: test = True
-#						if hasattr(fp.RootWire.Shape, "Edges") and hasattr(fp.TipWire.Shape, "Edges"):
+					if len(fp.RootWire.Shape.Edges) > 0: test["Root"] = True
+					if hasattr(fp, "TipWire"):
+						if fp.TipWire != None :
+							if hasattr(fp.TipWire, 'Shape') and hasattr(fp, "TipPoint"):
+								if len(fp.TipWire.Shape.Edges) > 0: test["All"] = True
 		return test
 
 	def onChanged(self, fp, prop):
 		# Do something when a property has changed
-		if self.check(fp):
 			if prop in ["RootPoint", "TipPoint", "RootOffset", "TipOffset", "RootInwardOffset",
 						"TipInwardOffset", "AutoRotate", "TangentType", "AngleOffset"]:
-				msgCsl("Rod class property change: " + str(prop) + "  Type of property :" + str(fp.getTypeIdOfProperty(prop)))
-#				self.calcVecRoot(fp)
-				self.updatePosition(fp)
-#			if prop == "TipPoint":
 #				msgCsl("Rod class property change: " + str(prop) + "  Type of property :" + str(fp.getTypeIdOfProperty(prop)))
-##				self.calcVecTip(fp)
-#				self.updatePosition(fp)
+#				self.calcVecRoot(fp)
+				if self.check(fp)["Root"]: self.updatePosition(fp)
 			if fp.getTypeIdOfProperty(prop) == 'App::PropertyLink':
 				obj = fp.getPropertyByName(prop)
 				if hasattr(obj, "Name") and hasattr(self, "ObjNameList"):
 					if obj.Name != self.ObjNameList[prop]:
 						self.ObjNameList[prop] = obj.Name
 						if prop in ["RootWire", "TipWire", "CoordSystem"]:
-							msgCsl("Rod class property change: " + str(prop) + "  Type of property :" + str(fp.getTypeIdOfProperty(prop)))
+#							msgCsl("Rod class property change: " + str(prop) + "  Type of property :" + str(fp.getTypeIdOfProperty(prop)))
 #								self.calcVecRoot(fp)
-							self.updatePosition(fp)
-#							elif prop == "TipWire":
-#								msgCsl("Rod class property change: " + str(prop) + "  Type of property :" + str(fp.getTypeIdOfProperty(prop)))
-##								self.calcVecTip(fp)
-#								self.updatePosition(fp)
-#							elif prop == "CoordSystem":
-#								self.updatePosition(fp)
-#					else:
-#						self.ObjNameList = {"RootWire":"", "TipWire":"", "CoordSystem":""}
-#			if prop == "TipOffset":
-#				msgCsl("Rod class property change: " + str(prop) + "  Type of property :" + str(fp.getTypeIdOfProperty(prop)))
-#				self.updateLength(fp)
-#			if prop == "RootOffset":
-#				msgCsl("Rod class property change: " + str(prop) + "  Type of property :" + str(fp.getTypeIdOfProperty(prop)))
-#				self.updateRootPosition(fp)
-#			if prop == "RootInwardOffset":
-#				msgCsl("Rod class property change: " + str(prop) + "  Type of property :" + str(fp.getTypeIdOfProperty(prop)))
-##				self.calcVecRoot(fp)
-#				self.updatePosition(fp)
-#			if prop == "TipInwardOffset":
-#				msgCsl("Rod class property change: " + str(prop) + "  Type of property :" + str(fp.getTypeIdOfProperty(prop)))
-##				self.calcVecTip(fp)
-#				self.updatePosition(fp)
-#			if prop == "AutoRotate":
-#				msgCsl("Rod class property change: " + str(prop) + "  Type of property :" + str(fp.getTypeIdOfProperty(prop)))
-#				self.updatePosition(fp)
-#			if prop == "TangentType":
-##				self.calcVecRoot(fp)
-##				self.calcVecTip(fp)
-#				self.updatePosition(fp)
-			
+							if self.check(fp)["Root"]: self.updatePosition(fp)
+
 	def __getstate__(self):
 		state = {}
 		state["VecRoot"] = list(self.VecRoot)
@@ -488,7 +438,7 @@ class Rod:
 		state["VecTipTangent"] = list(self.VecTipTangent)
 		state["VecTipCurvature"] = list(self.VecTipCurvature)
 		state["VecDirRod"] = list(self.VecDirRod)
-		state["VecRodEdge"] = list(self.VecRodEdge)
+#		state["VecRodEdge"] = list(self.VecRodEdge)
 		state["VecRodCenter"] = list(self.VecRodCenter)
 		return state
 
@@ -500,7 +450,7 @@ class Rod:
 		self.VecTipTangent = Vector(tuple( i for i in state["VecTipTangent"]))
 		self.VecTipCurvature = Vector(tuple( i for i in state["VecTipCurvature"]))
 		self.VecDirRod = Vector(tuple( i for i in state["VecDirRod"]))
-		self.VecRodEdge = Vector(tuple( i for i in state["VecRodEdge"]))
+#		self.VecRodEdge = Vector(tuple( i for i in state["VecRodEdge"]))
 		self.VecRodCenter = Vector(tuple( i for i in state["VecRodCenter"]))
 		self.ObjNameList = {"RootWire":"", "TipWire":"", "CoordSystem":""}
 
@@ -532,7 +482,10 @@ class Rod:
 		else:
 			self.VecRoot = Pt
 #		msgCsl("VecRoot "+ format(self.VecRoot))
-		self.calcVecDirRod(fp)
+		if not self.check(fp)["All"]:
+			self.VecDirRod = VecRootNormal.multiply(-1)
+		else:
+			self.calcVecDirRod(fp)
 
 	def calcVecTip(self, fp):
 		mEdge = fp.TipWire.Shape.Edges[int(fp.TipPoint)]
@@ -566,7 +519,7 @@ class Rod:
 	def calcVecRod(self, fp):
 #		if self.testWires(fp):
 			self.VecRodCenter = fp.CoordSystem.Tangent.Start
-			self.VecRodEdge = PtsToVec(fp.CoordSystem.Tangent.Start,fp.CoordSystem.Tangent.End)
+#			self.VecRodEdge = PtsToVec(fp.CoordSystem.Tangent.Start,fp.CoordSystem.Tangent.End)
 
 	def updateRootPosition(self, fp):
 		mDir = self.VecDirRod
@@ -583,17 +536,14 @@ class Rod:
 			self.updateLength(fp)
 
 	def updateLength(self, fp):
-#		if self.testWires(fp):
+		if self.check(fp)["All"]:
 			if fp.CoordSystem.LinkedObject.TypeId in ["Part::Box","Part::Cylinder"]:
-#				fp.Rod.Height = self.VecDirRod.Length + float(fp.RootOffset) + float(fp.TipOffset)
 				fp.CoordSystem.LinkedObject.Height = self.VecDirRod.Length + float(fp.RootOffset) + float(fp.TipOffset)
 #				msgCsl("indice VecDirRod: " + str(self.VecList["VecDirRod"]) + " vector VecDirRod: " + format(fp.VectorList[self.VecList["VecDirRod"]]))
 			if fp.CoordSystem.LinkedObject.TypeId == "PartDesign::Pad":
-#				fp.Rod.Length = self.VecDirRod.Length + float(fp.RootOffset) + float(fp.TipOffset)
 				fp.CoordSystem.LinkedObject.Length = self.VecDirRod.Length + float(fp.RootOffset) + float(fp.TipOffset)
 			if fp.CoordSystem.LinkedObject.TypeId == "Part::Extrusion":
-#				fp.Rod.Length = self.VecDirRod.Length + float(fp.RootOffset) + float(fp.TipOffset)
-				fp.CoordSystem.LinkedObject.Dir.Length = self.VecDirRod.Length + float(fp.RootOffset) + float(fp.TipOffset)
+				fp.CoordSystem.LinkedObject.LengthFwd = self.VecDirRod.Length + float(fp.RootOffset) + float(fp.TipOffset)
 
 	def updateAxis(self, obj, placmnt):
 		obj.Tangent.Placement = placmnt
@@ -602,35 +552,33 @@ class Rod:
 		obj.Proxy.updatePlacement(obj)
 
 	def updatePosition(self,fp):
-#		if self.testWires(fp) and fp.CoordSystem.Proxy.ObjectOk:
-			self.calcVecRoot(fp)
-			self.calcVecTip(fp)
-			VecRoot = self.VecRoot
-			VecDirRod = self.VecDirRod
-			mRot = FreeCAD.Rotation(FreeCAD.Vector(0,0,1), VecDirRod)
+		self.calcVecRoot(fp)
+		if self.check(fp)["All"]: self.calcVecTip(fp)
+		VecRoot = self.VecRoot
+		VecDirRod = self.VecDirRod
+		mRot = FreeCAD.Rotation(FreeCAD.Vector(0,0,1), VecDirRod)
 #			msgCsl("VecRoot "+ format(VecRoot))
-			mPlacementAlign = Placement()
-			mPlacementAlign.move(VecRoot)
-			mPlacementAlign = FreeCAD.Placement(VecNul, mRot, VecRoot).multiply(mPlacementAlign)
+		mPlacementAlign = Placement()
+		mPlacementAlign.move(VecRoot)
+		mPlacementAlign = FreeCAD.Placement(VecNul, mRot, VecRoot).multiply(mPlacementAlign)
 #			msgCsl("mPlacementAlign "+ format(mPlacementAlign))
-			self.updateAxis(fp.CoordSystem, mPlacementAlign)
-			if fp.AutoRotate and self.VecRootTangent != VecNul:
-				VecRootTangent = self.VecRootTangent
-				VecTipTangent = self.VecTipTangent
-				VecBisector = VecRootTangent.add(VecTipTangent).normalize()  # Vector mean of root and tip tangents
+		self.updateAxis(fp.CoordSystem, mPlacementAlign)
+		if fp.AutoRotate and self.VecRootTangent != VecNul:
+			VecRootTangent = self.VecRootTangent
+			VecTipTangent = self.VecTipTangent
+			VecBisector = VecRootTangent.add(VecTipTangent).normalize()  # Vector mean of root and tip tangents
 #				msgCsl("VecBisector "+ format(VecBisector))
-				VecBisector.projectToPlane(VecNul,VecDirRod)  # projection in the normal plan of rod axis
+			VecBisector.projectToPlane(VecNul,VecDirRod)  # projection in the normal plan of rod axis
 #				msgCsl("VecBisector "+ format(VecBisector))
 #				msgCsl("VecRootTangent "+ format(VecRootTangent))
 #				msgCsl("VecTipTangent "+ format(VecTipTangent))
-				mRot = FreeCAD.Rotation(fp.CoordSystem.Tangent.End.sub(fp.CoordSystem.Tangent.Start), VecBisector)
+			mRot = FreeCAD.Rotation(fp.CoordSystem.Tangent.End.sub(fp.CoordSystem.Tangent.Start), VecBisector)
 #				msgCsl("Rotation "+ format(mRot))
-				mPlacement = FreeCAD.Placement(VecNul, mRot, VecRoot)
-#				mPlacement = mPlacement.multiply(mPlacement2)
+			mPlacement = FreeCAD.Placement(VecNul, mRot, VecRoot)
 #				msgCsl("Rotation center: " + format(DiscretizedPoint(fp.RootWire, fp.RootPoint)))
 #				msgCsl("Placement Rotation "+ format(mPlacement))
-				self.updateAxis(fp.CoordSystem, mPlacement.multiply(fp.CoordSystem.Tangent.Placement))
-			self.updateRootPosition(fp)
+			self.updateAxis(fp.CoordSystem, mPlacement.multiply(fp.CoordSystem.Tangent.Placement))
+		self.updateRootPosition(fp)
 
 
 class ViewProviderRod(ViewProviderGeneric):
@@ -649,6 +597,8 @@ class WrapLeadingEdge:
 		obj.addProperty("App::PropertyDistance", "Thickness", "Settings", "Thickness of the wrap").Thickness = 1.5
 		obj.addProperty("App::PropertyLink", "Wrap", "LinkedObject", "Wrapped wire", 1)
 		obj.addProperty("App::PropertyLink", "CutWire", "LinkedObject", "Cut wire after having cut the wrap", 1)
+		obj.addProperty("App::PropertyBool", "Inward", "Settings", "Draw the wrap inward or backward").Inward = True
+#		obj.addProperty("App::PropertyBool", "DeleteLoop", "Settings", "Delete loop of wrap and cut wires").DeleteLoop = False
 		self.WireLinked = False
 		obj.Proxy = self
 
@@ -656,17 +606,19 @@ class WrapLeadingEdge:
 		# Do something when a property has changed
 		if hasattr(fp, "Wire"):
 			if fp.Wire != None:
-				if prop in ["StartPoint", "EndPoint", "Thickness"]:
+				if prop in ["StartPoint", "EndPoint", "Thickness", "Inward"]:
 					if self.WireLinked:
 						self.updateWrap(fp, fp.Wire, fp.StartPoint, fp.EndPoint)
-						self.updateCutWire(fp.Wire, fp.Wrap, fp.CutWire, fp.StartPoint, fp.EndPoint)
+						if fp.Inward: self.updateCutWire(fp.Wire, fp.Wrap, fp.CutWire, fp.StartPoint, fp.EndPoint)
+#						if fp.DeleteLoop: DeleteLoop(fp.CutWire)
 				if prop == "Wire":
 					if not self.WireLinked:
 						self.createWrap(fp, fp.Wire, fp.StartPoint, fp.EndPoint)
 						self.WireLinked = True
 					elif hasattr(fp, "Wrap"):
 						self.updateWrap(fp, fp.Wire, fp.StartPoint, fp.EndPoint)
-						self.updateCutWire(fp.Wire, fp.Wrap, fp.CutWire, fp.StartPoint, fp.EndPoint)
+						if fp.Inward: self.updateCutWire(fp.Wire, fp.Wrap, fp.CutWire, fp.StartPoint, fp.EndPoint)
+#						if fp.DeleteLoop: DeleteLoop(fp.CutWire)
 
 	def execute(self, fp):
 		msgCsl("class " + self.__class__.__name__ + ", execute")
@@ -674,6 +626,7 @@ class WrapLeadingEdge:
 	def calculateWrapPoints(self, fp, wire, start, end):
 		pts = []
 		if wire != None and int(end) > int(start):
+			sens = 1 if fp.Inward else -1
 			pts.append(DiscretizedPoint(wire, start))
 #			nbpts = int(end) - int(start)
 			nbp = int(end) - int(start)
@@ -689,7 +642,7 @@ class WrapLeadingEdge:
 			for i in range(nbp, -1, -1):
 				vecdec = curveVec(wire, int(start) + i)
 				vecdec.normalize()
-				vecdec.multiply(fp.Thickness)
+				vecdec.multiply(sens * fp.Thickness)
 				pts.append(pts[i].add(vecdec))
 		return pts
 	
@@ -718,12 +671,15 @@ class WrapLeadingEdge:
 			pts = self.calculateWrapPoints(fp, wire, start, end)
 			wrapobj = Draft.makeWire(pts, True, False)
 			wrapobj.Label = "Wrap"
+#			if fp.DeleteLoop: DeleteLoop(wrapobj)
 			fp.Wrap = wrapobj
-			msgCsl("create cut wire")
-			pts2 = self.calculateCutWirePoints(wire, wrapobj, start, end)
-			cutobj = Draft.makeWire(pts2, True, False)
-			cutobj.Label = "CutWire"
-			fp.CutWire = cutobj
+			if fp.Inward:
+				msgCsl("create cut wire")
+				pts2 = self.calculateCutWirePoints(wire, wrapobj, start, end)
+				cutobj = Draft.makeWire(pts2, True, False)
+				cutobj.Label = "CutWire"
+#				if fp.DeleteLoop: DeleteLoop(cutobj)
+				fp.CutWire = cutobj
 	
 	def updateWrap(self, fp, wire, start, end):
 		if wire != None and fp.Wrap != None and int(end) > int(start):
@@ -740,6 +696,7 @@ class WrapLeadingEdge:
 				for i in range(nbwrap, nbpts, +1):
 					wrappts.append(pts[i])   # pts[i] does not matter, it's just to increase the wire points number
 			fp.Wrap.Points = pts
+#			if fp.DeleteLoop: DeleteLoop(fp.Wrap)
 
 	def updateCutWire(self, wire, wrap, cutwire, start, end):
 		if wire != None and wrap != None and int(end) > int(start):
@@ -769,13 +726,12 @@ class ViewProviderWrapLeadingEdge(ViewProviderGeneric):
 	def onDelete(self, viewObject, subelements):  # subelements is a tuple of strings
 		obj = viewObject.Object
 		doc = FreeCAD.ActiveDocument
-		doc.removeObject(obj.Wrap.Name)
-		doc.removeObject(obj.CutWire.Name)
-#		obj.Wrap = None
+		if obj.Wrap != None: doc.removeObject(obj.Wrap.Name)
+		if obj.CutWire != None: doc.removeObject(obj.CutWire.Name)
 		return True
 	
 
-class CutWire:
+class LeadingEdge:
 	
 	def __init__(self, obj):
 		msgCsl("class " + self.__class__.__name__ + ", __init__")
@@ -789,8 +745,10 @@ class CutWire:
 		obj.addProperty("App::PropertyFloat","TipEndPoint", "Tip","Digit point of the root wire", 1).TipEndPoint = 0.0
 		obj.addProperty("App::PropertyLink","LeftCutTip","Tip","", 1)
 		obj.addProperty("App::PropertyLink","RightCutTip","Tip","", 1)
-#		obj.addProperty("App::PropertyBool", "CutWire", "CutWire", "Cut the wire in two wires").CutWire = False
-		self.Initialized = False
+		obj.addProperty("App::PropertyLink","Plane","CutPlane","", 1)
+		obj.addProperty("App::PropertyEnumeration", "CutType", "CutPlane", "Define wire to be created").CutType = ["Left", "Right", "Both"]
+		self.Initialized = {"Left" : False, "Right" : False}
+		obj.CutType = "Right"
 		obj.Proxy = self
 
 	def execute(self, fp):
@@ -803,62 +761,102 @@ class CutWire:
 					return True
 		else: return False
 		
-		
 	def onChanged(self, fp, prop):
 		# Do something when a property has changed
 #		msgCsl(self.__class__.__name__ + " class property change: " + str(prop) + "  Type of property :" + str(fp.getTypeIdOfProperty(prop)))
-		if self.check(fp) and prop in ["RootWire", "RootStartPoint", "RootEndPoint", "TipWire", "TipStartPoint"]:
-			if not self.Initialized:
-				self.createCutWires(fp)
-			else:
-				self.updateCutWires(fp)
+		if self.check(fp) and prop in ["RootWire", "RootStartPoint", "RootEndPoint", "TipWire", "TipStartPoint", "CutType"]:
+			create = False
+			for mkey, mvalue in self.Initialized.items():
+				if not mvalue and (fp.CutType == "Both" or mkey == fp.CutType): create = True
+			if create: self.createCutWires(fp)
+			else: self.updateCutWires(fp)
+			self.deleteWires(fp)
 
-	def calculateTipEndPoint(self, fp):
+	def updatePlane(self, fp):
 		RStartPt = DiscretizedPoint(fp.RootWire, fp.RootStartPoint)
 		REndPt = DiscretizedPoint(fp.RootWire, fp.RootEndPoint)
 		TStartPt = DiscretizedPoint(fp.TipWire, fp.TipStartPoint)
-		normVec = PtsToVec(RStartPt, REndPt).cross(PtsToVec(RStartPt, TStartPt))
-		mplane = Part.makePlane(10, 10, RStartPt, normVec)
+		vec1 = PtsToVec(RStartPt, REndPt)
+		vec2 = PtsToVec(RStartPt, TStartPt)
+		normVec = vec2.cross(vec1)
+		if fp.Plane == None:
+#			mplane = Part.makePlane(vec1.Length + 10, vec2.Length + 10, RStartPt, normVec)
+			mplane = FreeCAD.ActiveDocument.addObject("Part::Plane","Plane")
+			mplane.ViewObject.ShapeColor = (0.33,0.67,1.00)
+			mplane.ViewObject.LineColor = (1.00,0.67,0.00)
+			mplane.ViewObject.LineWidth = 3.00
+			mplane.ViewObject.Transparency = 50
+		else:
+			mplane = fp.Plane
+		mplane.Length = vec1.Length + 10
+		mplane.Width = vec2.Length + 10
+		mrot = Rotation(Vector(0, 1, 0), vec2)
+		mplane.Placement = Placement(VecNul, mrot)
+		mrot = Rotation(mplane.Shape.normalAt(0, 0).multiply(-1), normVec)
+		mplane.Placement = Placement(RStartPt.add(vec1.multiply(-5 / vec1.Length)), mrot).multiply(mplane.Placement)
+		mplane.Placement.move(vec2.multiply(-5 / vec2.Length))
+		fp.Plane = mplane
+
+	def calculateTipEndPoint(self, fp):
+		self.updatePlane(fp)
+		mplane = fp.Plane
 		startindex = int(fp.TipStartPoint)
 		for i in range(startindex + 1, len(fp.TipWire.Points) - 1, +1):
-			intersectPt = intersecLinePlane(fp.TipWire.Shape.Vertexes[i].Point, fp.TipWire.Shape.Vertexes[i + 1].Point, mplane)
+			intersectPt = intersecLinePlane(fp.TipWire.Shape.Vertexes[i].Point, fp.TipWire.Shape.Vertexes[i + 1].Point, mplane.Shape)
 			vec1 = PtsToVec(intersectPt, fp.TipWire.Shape.Vertexes[i].Point)
 			vec2 = PtsToVec(intersectPt, fp.TipWire.Shape.Vertexes[i + 1].Point)
 			mdot = vec1.dot(vec2)
 			if mdot <= 0:
 				fp.TipEndPoint = i + vec1.Length / (vec1.Length + vec2.Length) # TipEndPoint is TipWire point index i + part of edge[i]
-				mplane.nullify()
 				return True
-		mplane.nullify()
 		return False
 
 	def createCutWires(self, fp):
 		if fp.RootEndPoint > fp.RootStartPoint + 1:
 			if self.calculateTipEndPoint(fp):
-				leftpts, rightpts = cutWire(fp.RootWire, fp.RootStartPoint, fp.RootEndPoint)
-				fp.LeftCutRoot = Draft.makeWire(leftpts, True, False)
-				fp.RightCutRoot = Draft.makeWire(rightpts, True, False)
-				fp.LeftCutRoot.Label = "LeftCutRoot"
-				fp.RightCutRoot.Label = "RightCutRoot"
-				leftpts, rightpts = cutWire(fp.TipWire, fp.TipStartPoint, fp.TipEndPoint)
-				fp.LeftCutTip = Draft.makeWire(leftpts, True, False)
-				fp.RightCutTip = Draft.makeWire(rightpts, True, False)
-				fp.LeftCutTip.Label = "LeftCutTip"
-				fp.RightCutTip.Label = "RightCutTip"
-				self.Initialized = True
+				type = fp.CutType
+				leftpts, rightpts = cutWire(fp.RootWire, fp.RootStartPoint, fp.RootEndPoint, type)
+				leftpts2, rightpts2 = cutWire(fp.TipWire, fp.TipStartPoint, fp.TipEndPoint, type)
+				if type == "Right" or (type == "Both" and not self.Initialized["Right"]):
+					fp.RightCutRoot = Draft.makeWire(rightpts, True, False)
+					fp.RightCutRoot.Label = "RightCutRoot"
+					fp.RightCutTip = Draft.makeWire(rightpts2, True, False)
+					fp.RightCutTip.Label = "RightCutTip"
+					self.Initialized[type] = True
+				if type == "Left" or (type == "Both" and not self.Initialized["Left"]):
+					fp.LeftCutRoot = Draft.makeWire(leftpts, True, False)
+					fp.LeftCutRoot.Label = "LeftCutRoot"
+					fp.LeftCutTip = Draft.makeWire(leftpts2, True, False)
+					fp.LeftCutTip.Label = "LeftCutTip"
+					self.Initialized[type] = True
+				del leftpts, leftpts2, rightpts, rightpts2
 
 	def updateCutWires(self, fp):
-		if fp.RootEndPoint > fp.RootStartPoint + 1:
-			if self.calculateTipEndPoint(fp):
-				leftpts, rightpts = cutWire(fp.RootWire, fp.RootStartPoint, fp.RootEndPoint)
-				fp.LeftCutRoot.Points = leftpts
-				fp.RightCutRoot.Points = rightpts
-				leftpts, rightpts = cutWire(fp.TipWire, fp.TipStartPoint, fp.TipEndPoint)
-				fp.LeftCutTip.Points = leftpts
-				fp.RightCutTip.Points = rightpts
-				
+		if hasattr(fp.RootWire.Shape, "Edge1"):
+			if fp.RootEndPoint > fp.RootStartPoint + 1:
+				if self.calculateTipEndPoint(fp):
+					type = fp.CutType
+					leftpts, rightpts = cutWire(fp.RootWire, fp.RootStartPoint, fp.RootEndPoint, type)
+					leftpts2, rightpts2 = cutWire(fp.TipWire, fp.TipStartPoint, fp.TipEndPoint, type)
+					if type in ["Left", "Both"]:
+						fp.LeftCutRoot.Points = leftpts
+						fp.LeftCutTip.Points = leftpts2
+					if type in ["Right", "Both"]:
+						fp.RightCutRoot.Points = rightpts
+						fp.RightCutTip.Points = rightpts2
+					del leftpts, leftpts2, rightpts, rightpts2
+	
+	def deleteWires(self, fp):
+		if fp.CutType == "Left": # and self.Initialized["Right"]:  # delete Right wires
+			if fp.RightCutRoot != None: FreeCAD.ActiveDocument.removeObject(fp.RightCutRoot.Name)
+			if fp.RightCutTip != None: FreeCAD.ActiveDocument.removeObject(fp.RightCutTip.Name)
+			self.Initialized["Right"] = False
+		if fp.CutType == "Right": # and self.Initialized["Left"]:  # delete Left wires
+			if fp.LeftCutRoot != None: FreeCAD.ActiveDocument.removeObject(fp.LeftCutRoot.Name)
+			if fp.LeftCutTip != None: FreeCAD.ActiveDocument.removeObject(fp.LeftCutTip.Name)
+			self.Initialized["Left"] = False			
 
-class ViewProviderCutWire(ViewProviderGeneric):
+class ViewProviderLeadingEdge(ViewProviderGeneric):
 	
 	def getIcon(self):
 		return iconPath + 'LeadingEdge-icon.svg'
@@ -866,10 +864,185 @@ class ViewProviderCutWire(ViewProviderGeneric):
 	def onDelete(self, viewObject, subelements):  # subelements is a tuple of strings
 		obj = viewObject.Object
 		doc = FreeCAD.ActiveDocument
-		doc.removeObject(obj.LeftCutRoot.Name)
-		doc.removeObject(obj.RightCutRoot.Name)
-		doc.removeObject(obj.LeftCutTip.Name)
-		doc.removeObject(obj.RightCutTip.Name)
+		if obj.LeftCutRoot != None:	doc.removeObject(obj.LeftCutRoot.Name)
+		if obj.RightCutRoot != None: doc.removeObject(obj.RightCutRoot.Name)
+		if obj.LeftCutTip != None: doc.removeObject(obj.LeftCutTip.Name)
+		if obj.RightCutTip != None:	doc.removeObject(obj.RightCutTip.Name)
+		if obj.Plane != None: doc.removeObject(obj.Plane.Name)
+		return True
+
+
+class CutWire:
+	
+	def __init__(self, obj):
+		msgCsl("class " + self.__class__.__name__ + ", __init__")
+		obj.addProperty("App::PropertyLink","Wire","Wire", "")
+		obj.addProperty("App::PropertyFloat","StartPoint", "Wire","Start point of the root wire").StartPoint = 0.0
+		obj.addProperty("App::PropertyFloat","EndPoint", "Wire","End point of the root wire").EndPoint = 0.0
+		obj.addProperty("App::PropertyLink","LeftCut","Wire","", 1)
+		obj.addProperty("App::PropertyLink","RightCut","Wire","", 1)
+		obj.addProperty("App::PropertyEnumeration", "CutType", "CutPlane", "Define wire to be created").CutType = ["Left", "Right", "Both"]
+		self.Initialized = {"Left" : False, "Right" : False}
+		obj.CutType = "Right"
+		obj.Proxy = self
+
+	def execute(self, fp):
+		msgCsl("class " + self.__class__.__name__ + ", execute")
+		
+	def check(self, fp):
+		if hasattr(fp, "Wire"):
+			if fp.Wire != None:
+				if hasattr(fp, "StartPoint") and hasattr(fp, "EndPoint"):
+					return True
+		else: return False
+		
+	def onChanged(self, fp, prop):
+		# Do something when a property has changed
+#		msgCsl(self.__class__.__name__ + " class property change: " + str(prop) + "  Type of property :" + str(fp.getTypeIdOfProperty(prop)))
+		if self.check(fp) and prop in ["Wire", "StartPoint", "EndPoint", "CutType"]:
+			create = False
+			for mkey, mvalue in self.Initialized.items():
+				if not mvalue and (fp.CutType == "Both" or mkey == fp.CutType): create = True
+			if create: self.createCutWires(fp)
+			else: self.updateCutWires(fp)
+			self.deleteWires(fp)
+
+	def createCutWires(self, fp):
+		if fp.EndPoint > fp.StartPoint + 1:
+			type = fp.CutType
+			leftpts, rightpts = cutWire(fp.Wire, fp.StartPoint, fp.EndPoint, type)
+			if type == "Right" or (type == "Both" and not self.Initialized["Right"]):
+				fp.RightCut = Draft.makeWire(rightpts, True, False)
+				fp.RightCut.Label = "RightCut"
+				self.Initialized[type] = True
+			if type == "Left" or (type == "Both" and not self.Initialized["Left"]):
+				fp.LeftCut = Draft.makeWire(leftpts, True, False)
+				fp.LeftCut.Label = "LeftCut"
+				self.Initialized[type] = True
+			del leftpts, rightpts
+
+	def updateCutWires(self, fp):
+		if hasattr(fp.Wire.Shape, "Edge1"):
+			if fp.EndPoint > fp.StartPoint + 1:
+				type = fp.CutType
+				leftpts, rightpts = cutWire(fp.Wire, fp.StartPoint, fp.EndPoint, type)
+				if type in ["Left", "Both"]:
+					fp.LeftCut.Points = leftpts
+				if type in ["Right", "Both"]:
+					fp.RightCut.Points = rightpts
+				del leftpts, rightpts
+	
+	def deleteWires(self, fp):
+		if fp.CutType == "Left": # and self.Initialized["Right"]:  # delete Right wires
+			if fp.RightCut != None: FreeCAD.ActiveDocument.removeObject(fp.RightCut.Name)
+			self.Initialized["Right"] = False
+		if fp.CutType == "Right": # and self.Initialized["Left"]:  # delete Left wires
+			if fp.LeftCut != None: FreeCAD.ActiveDocument.removeObject(fp.LeftCut.Name)
+			self.Initialized["Left"] = False			
+
+class ViewProviderCutWire(ViewProviderGeneric):
+	
+	def getIcon(self):
+		return iconPath + 'CutWire-icon.svg'
+
+	def onDelete(self, viewObject, subelements):  # subelements is a tuple of strings
+		obj = viewObject.Object
+		doc = FreeCAD.ActiveDocument
+		if obj.LeftCut != None:	doc.removeObject(obj.LeftCut.Name)
+		if obj.RightCut != None: doc.removeObject(obj.RightCut.Name)
+		return True
+
+
+class Section:
+
+	def __init__(self, obj):
+		msgCsl("class " + self.__class__.__name__ + ", __init__")
+		obj.addProperty("App::PropertyLink","SlicedObject","Section", "Sliced object")
+		obj.addProperty("App::PropertyFloat","Offset", "Settings","Distance from the object origin").Offset = 0.001
+		obj.addProperty("App::PropertyLink","CutPlane","Section","Plane of the section", 1)
+		obj.addProperty("App::PropertyLink","Section","Section","Section's wire", 1)
+#		obj.addProperty("App::PropertyBool", "createSection", "Wing", "Make the loft from the root and tip wires").MakeLoft = False
+		obj.Proxy = self
+
+	def execute(self, fp):
+		msgCsl("class " + self.__class__.__name__ + ", execute")
+		
+	def check(self, fp):
+		if hasattr(fp, "SlicedObject"):
+			if fp.SlicedObject != None:
+				return True
+		else: return False
+		
+	def onChanged(self, fp, prop):
+		# Do something when a property has changed
+#		msgCsl(self.__class__.__name__ + " class property change: " + str(prop) + "  Type of property :" + str(fp.getTypeIdOfProperty(prop)))
+		if prop in ["SlicedObject", "Offset"]:
+			if self.check(fp):
+				if fp.CutPlane == None: self.createSection(fp)
+				else: self.updateSection(fp)
+	
+	def updatePlane(self, fp, dist):
+		if fp.CutPlane == None:
+			mplane = FreeCAD.ActiveDocument.addObject("Part::Plane","Plane")
+			mplane.ViewObject.ShapeColor = (0.33,0.67,1.00)
+			mplane.ViewObject.LineColor = (1.00,0.67,0.00)
+			mplane.ViewObject.LineWidth = 3.00
+			mplane.ViewObject.Transparency = 50
+		else:
+			mplane = fp.CutPlane
+		bbox = fp.SlicedObject.Shape.BoundBox
+		pos = Vector(bbox.XMin, bbox.YMin, bbox.ZMin)
+		vecX = PtsToVec(pos, Vector(bbox.XMax, bbox.YMin, bbox.ZMin))
+		vecY = PtsToVec(pos, Vector(bbox.XMin, bbox.YMax, bbox.ZMin))
+#		if fp.SlicedObject.TypeId == "Part::Loft":
+#			normVec = PtsToVec(fp.SlicedObject.OutList[0].Shape.CenterOfMass, fp.SlicedObject.OutList[1].Shape.CenterOfMass)
+#			normVec.normalize()
+#		else:
+		normVec = PtsToVec(pos, Vector(bbox.XMin, bbox.YMin, bbox.ZMax))
+		normVec.normalize()
+		mplane.Length = bbox.XLength + 10
+		mplane.Width = bbox.YLength + 10
+		mrot = Rotation(Vector(1, 0, 0), vecX)
+		mplane.Placement = Placement(VecNul, mrot)
+		mrot = Rotation(mplane.Shape.normalAt(0, 0), normVec)
+		mplane.Placement = Placement(pos.add(vecX.multiply(-5 / vecX.Length)).add(vecY.multiply(-5 / vecY.Length)), mrot).multiply(mplane.Placement)
+		if dist != 0: mplane.Placement.move(normVec.multiply(dist))
+		fp.CutPlane = mplane
+		return normVec
+
+	def createSection(self, fp):
+		normVec = self.updatePlane(fp, fp.Offset)
+		slice = Part.Compound(fp.SlicedObject.Shape.slice(normVec.normalize(), fp.Offset))
+#		msgCsl("normVec: " + format(normVec))
+		pts = []
+		for i in range(0, len(slice.Vertexes), +1):
+			pts.append(slice.Vertexes[i].Point)
+#			msgCsl("points i: " + format(pts[i]))
+		fp.Section = Draft.makeWire(pts, True, False)
+		fp.Section.Label = "CutWire"
+		del slice		
+	
+	def updateSection(self, fp):
+		# in case of freecad file is loading, check plane is build
+		if len(fp.CutPlane.Shape.Edges) == 0: return
+		slice = Part.Compound(fp.SlicedObject.Shape.slice(self.updatePlane(fp, fp.Offset).normalize(), fp.Offset))
+		pts = []
+		for i in range(0, len(slice.Vertexes), +1):
+			pts.append(slice.Vertexes[i].Point)
+		fp.Section.Points = pts
+		del slice		
+
+
+class ViewProviderSection(ViewProviderGeneric):
+	
+	def getIcon(self):
+		return iconPath + 'Section.svg'
+
+	def onDelete(self, viewObject, subelements):  # subelements is a tuple of strings
+		obj = viewObject.Object
+		doc = FreeCAD.ActiveDocument
+		if obj.Section != None:	doc.removeObject(obj.Section.Name)
+		if obj.CutPlane != None: doc.removeObject(obj.CutPlane.Name)
 		return True
 
 
@@ -947,12 +1120,12 @@ def createWrapLeadingEdge():
 	obj.StartPoint = 1.0
 	obj.EndPoint = 2.0
 	if len(sel) > 0:
-		wobj = sel[0].Object
-		if wobj.Proxy.__class__.__name__ == "Profile":
+		wobj = sel[0]
+		if wobj.Object.Proxy.__class__.__name__ == "Profile":
 			msgCsl("Wing type found in selection for linking WrapLeadingEdge")
-			obj.Wire = wobj.Wire
-#			obj.Proxy.createWrap(obj, obj.RootWire, obj.RootStartPoint, obj.RootLength, "Root")
-#			obj.Proxy.createWrap(obj, obj.TipWire, obj.TipStartPoint, obj.TipLength, "Tip")
+			obj.Wire = wobj.Object.Wire
+		elif wobj.TypeName == "Part::Part2DObjectPython":
+			obj.Wire = wobj.Object
 		return obj
 	else:
 		userMsg("No selection or selection is not a wing object")
@@ -964,16 +1137,37 @@ def createProfile():
 	ViewProviderProfile(a.ViewObject, 'Profile-icon.svg')
 	a.Scale = 300
 
-def createCutWire():
-	msgCsl("createCutWire method starting...")
+def createLeadingEdge():
+	msgCsl("createLeadingEdge method starting...")
 	sel = FreeCADGui.Selection.getSelectionEx()
 	obj = FreeCAD.ActiveDocument.addObject("App::FeaturePython","LeadingEdge")
-	CutWire(obj)
-	ViewProviderCutWire(obj.ViewObject, 'LeadingEdge-icon.svg')
+	LeadingEdge(obj)
+	ViewProviderLeadingEdge(obj.ViewObject, 'LeadingEdge-icon.svg')
 	if len(sel) > 1:
 		wobj1 = sel[0].Object
 		wobj2 = sel[1].Object
 		if wobj1.TypeId == wobj2.TypeId == "Part::Part2DObjectPython":
 			obj.RootWire = wobj1
 			obj.TipWire = wobj2
-	
+
+def createCutWire():
+	msgCsl("createCutWire method starting...")
+	sel = FreeCADGui.Selection.getSelectionEx()
+	obj = FreeCAD.ActiveDocument.addObject("App::FeaturePython","CutWire")
+	CutWire(obj)
+	ViewProviderCutWire(obj.ViewObject, 'CutWire-icon.svg')
+	if len(sel) > 0:
+		wobj = sel[0].Object
+		if wobj.TypeId == "Part::Part2DObjectPython":
+			obj.Wire = wobj
+
+def createSection():
+	msgCsl("createCutWire method starting...")
+	sel = FreeCADGui.Selection.getSelectionEx()
+	obj = FreeCAD.ActiveDocument.addObject("App::FeaturePython","Section")
+	Section(obj)
+	ViewProviderSection(obj.ViewObject, 'Section.svg')
+	if len(sel) > 0:
+		wobj = sel[0].Object
+		if wobj.TypeId == "Part::Loft":
+			obj.SlicedObject = wobj
