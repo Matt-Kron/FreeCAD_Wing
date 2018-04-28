@@ -1,10 +1,16 @@
-import os, re
+import os, re, math
 import FreeCAD
+#import DraftGeomUtils
 from PySide import QtGui
 from FreeCAD import Vector
 
 ModeVerbose = True
 VecNul = FreeCAD.Vector(0,0,0)
+global verbose
+verbose=0
+
+if open.__module__ == '__builtin__':
+	pythonopen = open
 
 def msgCsl(message):
 	if ModeVerbose:
@@ -12,9 +18,6 @@ def msgCsl(message):
 
 def userMsg(message):
 	FreeCAD.Console.PrintMessage(message + "\n")
-
-if open.__module__ == '__builtin__':
-	pythonopen = open
 
 def FileProfil():
 	# PySide returns a tuple (filename, filter) instead of just a string like in PyQt
@@ -112,28 +115,30 @@ def DiscretizedPoint(wire, value):
 		pt = wire.Shape.Vertexes[int(value)].Point
 	return pt	
 
-def cutWire(wire, start, end):  # start and end are represent wire.Vertexes[start or end] and intermediate point in case of float
+def cutWire(wire, start, end, type):  # start and end are represent wire.Vertexes[start or end] and intermediate point in case of float
 	intstart = int(start)
 	fracstart = int((round(start, 2) - int(start))*100)
 	intend = int(end)
 	fracend = int((round(end, 2) - int(end))*100)
 	ptsright = []
-	ptsright.append(DiscretizedPoint(wire, start)) # first point is 'start' or intermediate point of 'first' edge
-	for i in range(intstart + 1, intend + 1, + 1):  # second point is always 'start' + 1
-		ptsright.append(wire.Shape.Vertexes[i].Point)
-	if fracend > 0:   # if 'end' point has decimal, one should add the intermediate point of 'last' edge
-		ptsright.append(DiscretizedPoint(wire, end))
+	if type in ["Right", "Both"]:
+		ptsright.append(DiscretizedPoint(wire, start)) # first point is 'start' or intermediate point of 'first' edge
+		for i in range(intstart + 1, intend + 1, + 1):  # second point is always 'start' + 1
+			ptsright.append(wire.Shape.Vertexes[i].Point)
+		if fracend > 0:   # if 'end' point has decimal, one should add the intermediate point of 'last' edge
+			ptsright.append(DiscretizedPoint(wire, end))
 	ptsleft = []
-	for i in range(0, intstart + 1, + 1):
-		ptsleft.append(wire.Shape.Vertexes[i].Point)
-	if fracstart > 0:   # if 'start' point has decimal, one should add the intermediate point of 'first' edge
-		ptsleft.append(DiscretizedPoint(wire, start))
-	ptsleft.append(DiscretizedPoint(wire, end))  # next point is 'end' point or the intermediate point of 'last' edge
-	for i in range(intend + 1, len(wire.Points), + 1):  # first point of the loop is always the following point of 'end' point
-		ptsleft.append(wire.Shape.Vertexes[i].Point)
+	if type in ["Left", "Both"]:
+		for i in range(0, intstart + 1, + 1):
+			ptsleft.append(wire.Shape.Vertexes[i].Point)
+		if fracstart > 0:   # if 'start' point has decimal, one should add the intermediate point of 'first' edge
+			ptsleft.append(DiscretizedPoint(wire, start))
+		ptsleft.append(DiscretizedPoint(wire, end))  # next point is 'end' point or the intermediate point of 'last' edge
+		for i in range(intend + 1, len(wire.Points), + 1):  # first point of the loop is always the following point of 'end' point
+			ptsleft.append(wire.Shape.Vertexes[i].Point)
 	return ptsleft, ptsright
 	
-def  intersecLinePlane(A,B, plane):
+def intersecLinePlane(A,B, plane):
     """ Return the intersection between a line A,B and a planar face.
     """
     N = plane.normalAt(0,0)
@@ -161,3 +166,139 @@ def  intersecLinePlane(A,B, plane):
         tz = az + k * uz
         T = Vector(tx, ty, tz)
         return T
+
+def intersecPerpendicularLine(A, B, C, info=0):
+    """ Return the intersection between the Line L defined by A and B
+    and the Line perpendicular crossing the point C.
+    """
+    if A == B:
+        return None
+    ax, ay, az = A.x, A.y, A.z
+    bx, by, bz = B.x, B.y, B.z
+    cx, cy, cz = C.x, C.y, C.z
+    ux, uy, uz = bx - ax, by - ay, bz - az
+    if (ux*ux + uy*uy + uz*uz) == 0.0:
+        return None
+    k = (ux*cx + uy*cy + uz*cz - ux*ax - uy*ay - uz*az)/(ux*ux + uy*uy + uz*uz)   
+    tx = ax + k * ux 
+    ty = ay + k * uy
+    tz = az + k * uz
+    T = Vector(tx, ty, tz)
+    vx, vy, vz = tx - cx, ty - cy, tz - cz
+    V = Vector(vx, vy, vz)
+    distance = math.sqrt(V.dot(V))
+#    Tprime = T + V
+    if info == 1:
+        msgCsl("Intersection Point at distance of " +
+                    str(distance) + " is : " + format(T))
+    return T #, distance, Tprime
+
+def plot_2LinesPoint(edge1, edge2):
+	""" Point(s)=(Line(s),Line(s)):
+	Plot one or two Point(s) at minimum distance of two Lines
+	Create a unique Point at intersection of 2 crossing Lines.
+
+	First
+	- Select two or more Line/Edge(s) and
+	- Then Click on the button
+
+	Plot the point A on the first Line given and the point  B on the second Line.
+	The Vector AB perpendicular to the first and second Line.
+
+	"""
+	msg=verbose 
+#	msg=1
+
+	error_msg = """Unable to create (Line,Line) Intersection(s) :
+	First
+	- Select two or more Line/Edge(s) and
+	- Then Click on the button
+	but at least select two different Lines !"""
+	result_msg = " : (Line,Line) Intersection(s) are created !"
+
+	try:
+		Edge_List = [edge1, edge2]
+		Number_of_Edges = len(Edge_List)
+		if msg != 0:        
+			msgCsl("Number_of_Edges=" + str(Number_of_Edges))        
+
+		if Number_of_Edges >= 2:
+			for i in range( Number_of_Edges -1 ):
+				f1 = Edge_List[i]
+				f2 = Edge_List[i+1]
+				#msgCsl(str(f1))
+				#msgCsl(str(f2))
+				d = f1.distToShape(f2)
+				msgCsl(str(d))
+				Distance = d[0]
+				Vector_A = d[1][0][0]
+				#print_point(Vector_A,"Vector_A is : ")
+#				Vector_B = d[1][0][1]
+				if abs(Distance) <= 1.e-14: 
+#					Center_User_Name = plot_point(Vector_A, part, name, str(m_dir))
+					msgCsl(str(Vector_A) + result_msg )
+					return Vector_A
+				else:
+#					Center_User_Name = plot_point(Vector_A, part, name, str(m_dir))
+#					print_point(Vector_A,str(Center_User_Name) + result_msg + " at :")
+#					Center_User_Name = plot_point(Vector_B, part, name, str(m_dir))
+#					print_point(Vector_B,str(Center_User_Name) + result_msg + " at :")
+					msgCsl(" Distance between the points is : " + str(Distance))
+		else:
+			msgCsl(error_msg)
+
+	except:
+		msgCsl(error_msg)
+
+def DeleteLoop(wire):
+	if len(wire.Points) > 3:
+#		start = wire.Points[0]
+		nbpts = len(wire.Points)
+#		end = wire.Points[nbpts - 1]
+		i = 0
+		j = 0
+		test = True
+		beginpts = []
+		endpts = []
+		turn = True
+		while i + 1 < nbpts - j - 2 and test:
+			start = wire.Points[i]
+			beginpts.append(start)
+			end = wire.Points[nbpts - j - 1]
+			endpts.append(end)
+			starti = wire.Points[i + 1]
+			endi = wire.Points[nbpts - j - 2]
+			mid = middle(starti, endi)
+#			msgCsl("start: " + format(start) + " mid: " + format(mid) + " end: " + format(end))
+			midp = intersecPerpendicularLine(start, end, mid)
+#			msgCsl("starti: " + format(starti) + " midp: " + format(midp) + " endi: " + format(endi))
+			startip = intersecPerpendicularLine(start, end, starti)
+#			msgCsl("startip: " + format(startip))
+#			msgCsl("i: " + str(i) + " j: " + str(j))
+			msgCsl(str(PtsToVec(start, midp).dot(PtsToVec(midp, startip))))
+			if PtsToVec(start, midp).dot(PtsToVec(midp, startip)) > 0:
+#				msgCsl(str(plot_2LinesPoint(wire.Shape.Edges[i], wire.Shape.Edges[nbpts - j - 1])))
+				pt = plot_2LinesPoint(wire.Shape.Edges[i], wire.Shape.Edges[nbpts - j - 2])
+				if pt != None:
+					beginpts.append(pt)
+					test = False
+			if turn:
+				turn = False
+				i += 1
+			else:
+				turn = True
+				j += 1
+		if not test:
+			pts = []
+			for pt in beginpts:
+				pts.append(pt)
+			for i in range(len(endpts) - 1, -1, -1):
+				pts.append(endpts[i])
+#			nb = len(pts)
+#			m_pts = wire.Points
+#			for i in range(nb, nbpts, +1):
+#				m_pts.remove(m_pts[nbpts])
+			wire.Points = pts
+#			return pts
+#		else:
+#			return wire.Points
