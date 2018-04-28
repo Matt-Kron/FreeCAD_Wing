@@ -28,7 +28,7 @@
 import os
 import FreeCAD
 import FreeCADGui
-import Wing
+import Wing, WingDialogs
 
 __dir__ = os.path.dirname(Wing.__file__)
 global iconPath
@@ -79,10 +79,13 @@ if FreeCAD.GuiUp:
 	FreeCADGui.addCommand('Wing_ImportProfil',_CommandWing("Profile",'ImportProfile-icon.svg',"Wing.createProfile()","Wing"))
 	FreeCADGui.addCommand('Wing_Wing',_CommandWing("Wing",'Aile-icon.svg',"Wing.createWing()","Wing"))
 	FreeCADGui.addCommand('Wing_CoordSys',_CommandWing("Axis",'WF_Axes.svg',"Wing.createCoordSys()","Wing"))
-	FreeCADGui.addCommand('Wing_Nervures',_CommandWing("Nervures",'Nervures-icon.svg',"Nervures.createNervures()","Nervures"))
+#	FreeCADGui.addCommand('Wing_Nervures',_CommandWing("Nervures",'Nervures-icon.svg',"Nervures.createNervures()","Nervures"))
 	FreeCADGui.addCommand('Wing_Rod',_CommandWing("Rod",'Rod-icon.svg',"Wing.createRod()","Wing"))
 	FreeCADGui.addCommand('Wing_WrapLeadingEdge', _CommandWing("WrapLeadingEdge", "WrapLeadingEdge-icon.svg", "Wing.createWrapLeadingEdge()", "Wing"))
-	FreeCADGui.addCommand('Wing_LeadingEdge', _CommandWing("LeadingEdge", "LeadingEdge-icon.svg", "Wing.createCutWire()", "Wing"))
+	FreeCADGui.addCommand('Wing_LeadingEdge', _CommandWing("LeadingEdge", "LeadingEdge-icon.svg", "Wing.createLeadingEdge()", "Wing"))
+	FreeCADGui.addCommand('Wing_CutWire', _CommandWing("CutWire", "CutWire-icon.svg", "Wing.createCutWire()", "Wing"))
+	FreeCADGui.addCommand('Wing_Section', _CommandWing("Section", "Section.svg", "Wing.createSection()", "Wing"))
+	FreeCADGui.addCommand("WingDialog", WingDialogs.CommandWingDialog())
 
 class WingWorkbench(Workbench):
 	'''Wing workbench object'''
@@ -94,9 +97,10 @@ class WingWorkbench(Workbench):
 
 	def Initialize(self):
 		"This function is executed when FreeCAD starts"
-
-		self.appendToolbar("Wing", ["Wing_ImportProfil", "Wing_Wing", "Wing_CoordSys", "Wing_Nervures", "Wing_Rod", "Wing_WrapLeadingEdge", 'Wing_LeadingEdge'])
-		self.appendMenu("Wing", ["Wing_ImportProfil", "Wing_Wing", "Wing_CoordSys", "Wing_Nervures", "Wing_Rod", "Wing_WrapLeadingEdge", 'Wing_LeadingEdge'])
+		self.appendToolbar("Wing", ["Wing_ImportProfil", "Wing_Wing", "Wing_CoordSys", "Wing_Rod",
+							"Wing_WrapLeadingEdge", 'Wing_LeadingEdge', "Wing_CutWire", "Wing_Section", 'WingDialog'])
+		self.appendMenu("Wing", ["Wing_ImportProfil", "Wing_Wing", "Wing_CoordSys", "Wing_Rod",
+							"Wing_WrapLeadingEdge", 'Wing_LeadingEdge', "Wing_CutWire", "Wing_Section", 'WingDialog'])
 		Log ("Loading Wing module done")
 
 	def Activated(self):
