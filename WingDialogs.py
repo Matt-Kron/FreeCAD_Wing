@@ -79,7 +79,7 @@ class WingDialog():
 				msgCsl("Section object found")
 				self.obj = wobj
 				self.widget.ui.Section_info_selected_object.setText(wobj.Label + "(" + wobj.Name + ")")
-				msgCsl("object bounbox ZLength: " + str(wobj.SlicedObject.Shape.BoundBox.ZLength))
+#				msgCsl("object bounbox ZLength: " + str(wobj.SlicedObject.Shape.BoundBox.ZLength))
 #				self.widget.ui.object_value.setText(str(self.obj.Offset))
 #				self.maxValue = wobj.SlicedObject.Shape.BoundBox.ZLength
 				max = wobj.SlicedObject.Shape.BoundBox.ZLength
