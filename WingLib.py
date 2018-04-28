@@ -294,11 +294,10 @@ def DeleteLoop(wire):
 				pts.append(pt)
 			for i in range(len(endpts) - 1, -1, -1):
 				pts.append(endpts[i])
-#			nb = len(pts)
-#			m_pts = wire.Points
-#			for i in range(nb, nbpts, +1):
-#				m_pts.remove(m_pts[nbpts])
 			wire.Points = pts
-#			return pts
-#		else:
-#			return wire.Points
+
+def getVec(vector):
+	return Vector(vector[0], vector[1], vector[2])
+
+def setVec(Vector):
+	return [Vector.x, Vector.y, Vector.z]

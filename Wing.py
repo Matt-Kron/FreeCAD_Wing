@@ -387,15 +387,15 @@ class Rod:
 		obj.addProperty("App::PropertyEnumeration","TangentType","Settings","Either center of mass or vertexes").TangentType = ["Previous", "Next", "PreviousAndNext"]	
 		obj.addProperty("App::PropertyAngle","AngleOffset", "Settings","Angle offset").AngleOffset = 0.0
 #		obj.addProperty("App::PropertyAngle","TipAngleOffset", "Rod","Angle offset").TipAngleOffset = 0.0
-		self.VecRoot = VecNul
-		self.VecRootTangent = VecNul
-		self.VecRootCurvature = VecNul
-		self.VecTip = VecNul
-		self.VecTipTangent = VecNul
-		self.VecTipCurvature = VecNul
-		self.VecDirRod = VecNul
+		self.VecRoot = [0, 0, 0] #VecNul
+		self.VecRootTangent = [0, 0, 0] #VecNul
+		self.VecRootCurvature = [0, 0, 0] #VecNul
+		self.VecTip = [0, 0, 0] #VecNul
+		self.VecTipTangent = [0, 0, 0] #VecNul
+		self.VecTipCurvature = [0, 0, 0] #VecNul
+		self.VecDirRod = [0, 0, 0] #VecNul
 #		self.VecRodEdge = VecNul
-		self.VecRodCenter = VecNul
+		self.VecRodCenter = [0, 0, 0] #VecNul
 		self.ObjNameList = {"RootWire":"", "TipWire":"", "CoordSystem":""}
 		obj.TangentType = "Next"
 		obj.Proxy = self
@@ -429,37 +429,37 @@ class Rod:
 #								self.calcVecRoot(fp)
 							if self.check(fp)["Root"]: self.updatePosition(fp)
 
-	def __getstate__(self):
-		state = {}
-		state["VecRoot"] = list(self.VecRoot)
-		state["VecRootTangent"] = list(self.VecRootTangent)
-		state["VecRootCurvature"] = list(self.VecRootCurvature)
-		state["VecTip"] = list(self.VecTip)
-		state["VecTipTangent"] = list(self.VecTipTangent)
-		state["VecTipCurvature"] = list(self.VecTipCurvature)
-		state["VecDirRod"] = list(self.VecDirRod)
-#		state["VecRodEdge"] = list(self.VecRodEdge)
-		state["VecRodCenter"] = list(self.VecRodCenter)
-		return state
-
-	def __setstate__(self, state):
-		self.VecRoot = Vector(tuple( i for i in state["VecRoot"]))
-		self.VecRootTangent = Vector(tuple( i for i in state["VecRootTangent"]))
-		self.VecRootCurvature = Vector(tuple( i for i in state["VecRootCurvature"]))
-		self.VecTip = Vector(tuple( i for i in state["VecTip"]))
-		self.VecTipTangent = Vector(tuple( i for i in state["VecTipTangent"]))
-		self.VecTipCurvature = Vector(tuple( i for i in state["VecTipCurvature"]))
-		self.VecDirRod = Vector(tuple( i for i in state["VecDirRod"]))
-#		self.VecRodEdge = Vector(tuple( i for i in state["VecRodEdge"]))
-		self.VecRodCenter = Vector(tuple( i for i in state["VecRodCenter"]))
-		self.ObjNameList = {"RootWire":"", "TipWire":"", "CoordSystem":""}
+#	def __getstate__(self):
+#		state = {}
+#		state["VecRoot"] = list(self.VecRoot)
+#		state["VecRootTangent"] = list(self.VecRootTangent)
+#		state["VecRootCurvature"] = list(self.VecRootCurvature)
+#		state["VecTip"] = list(self.VecTip)
+#		state["VecTipTangent"] = list(self.VecTipTangent)
+#		state["VecTipCurvature"] = list(self.VecTipCurvature)
+#		state["VecDirRod"] = list(self.VecDirRod)
+##		state["VecRodEdge"] = list(self.VecRodEdge)
+#		state["VecRodCenter"] = list(self.VecRodCenter)
+#		return state
+#
+#	def __setstate__(self, state):
+#		self.VecRoot = Vector(tuple( i for i in state["VecRoot"]))
+#		self.VecRootTangent = Vector(tuple( i for i in state["VecRootTangent"]))
+#		self.VecRootCurvature = Vector(tuple( i for i in state["VecRootCurvature"]))
+#		self.VecTip = Vector(tuple( i for i in state["VecTip"]))
+#		self.VecTipTangent = Vector(tuple( i for i in state["VecTipTangent"]))
+#		self.VecTipCurvature = Vector(tuple( i for i in state["VecTipCurvature"]))
+#		self.VecDirRod = Vector(tuple( i for i in state["VecDirRod"]))
+##		self.VecRodEdge = Vector(tuple( i for i in state["VecRodEdge"]))
+#		self.VecRodCenter = Vector(tuple( i for i in state["VecRodCenter"]))
+#		self.ObjNameList = {"RootWire":"", "TipWire":"", "CoordSystem":""}
 
 	def execute(self, fp):
 		msgCsl("class " + self.__class__.__name__ + ", execute")
 	
 	def calcVecRoot(self, fp):
-		msgCsl("int(fp.RootPoint) "+ str(int(fp.RootPoint)))
-		msgCsl("nb fp.RootWire.Shape.Edges: " + str(len(fp.RootWire.Shape.Edges)))
+#		msgCsl("int(fp.RootPoint) "+ str(int(fp.RootPoint)))
+#		msgCsl("nb fp.RootWire.Shape.Edges: " + str(len(fp.RootWire.Shape.Edges)))
 		mEdge = fp.RootWire.Shape.Edges[int(fp.RootPoint)]
 #			msgCsl("mEdge "+ str(mEdge))
 		Fract = int((round(fp.RootPoint,2) - int(fp.RootPoint))*100)
@@ -471,19 +471,23 @@ class Rod:
 			Pt = fp.RootWire.Shape.Vertexes[int(fp.RootPoint)].Point
 		msgCsl("Pt "+ format(Pt))
 		# Root tangent, curvature axis calculated with adjacent points:
-		self.VecRootTangent = tangentVec(fp.RootWire, int(fp.RootPoint), fp.TangentType)
+		VecRootTangent = tangentVec(fp.RootWire, int(fp.RootPoint), fp.TangentType)
 		VecRootNormal = normalVec(fp.RootWire, int(fp.RootPoint))
-		self.VecRootCurvature = self.VecRootTangent.cross(VecRootNormal)
+		VecRootCurvature = VecRootTangent.cross(VecRootNormal)
 #			msgCsl("VecRootNormal "+ format(VecRootNormal))
-		self.VecRootCurvature.normalize()
+		VecRootCurvature.normalize()
 		if fp.RootInwardOffset != 0:
-			self.VecRoot = Pt.add(self.VecRootCurvature.multiply(fp.RootInwardOffset))
-			self.VecRootCurvature.normalize()
+			VecRoot = Pt.add(VecRootCurvature.multiply(fp.RootInwardOffset))
+			VecRootCurvature.normalize()
 		else:
-			self.VecRoot = Pt
-#		msgCsl("VecRoot "+ format(self.VecRoot))
+			VecRoot = Pt
+#		msgCsl("VecRoot "+ format(VecRoot))
+		self.VecRoot = setVec(VecRoot)
+		self.VecRootTangent = setVec(VecRootTangent)
+		self.VecRootCurvature = setVec(VecRootCurvature)
 		if not self.check(fp)["All"]:
-			self.VecDirRod = VecRootNormal.multiply(-1)
+			VecDirRod = VecRootNormal.multiply(-1)
+			self.VecDirRod = setVec(VecDirRod)
 		else:
 			self.calcVecDirRod(fp)
 
@@ -499,36 +503,39 @@ class Rod:
 			Pt = fp.TipWire.Shape.Vertexes[int(fp.TipPoint)].Point
 		msgCsl("Pt "+ format(Pt))
 		# Tip tangent, normal, curvature axis calculated with adjacent points:
-		self.VecTipTangent = tangentVec(fp.TipWire, int(fp.TipPoint), fp.TangentType)
+		VecTipTangent = tangentVec(fp.TipWire, int(fp.TipPoint), fp.TangentType)
 		VecTipNormal = normalVec(fp.TipWire, int(fp.TipPoint))
-		self.VecTipCurvature = self.VecTipTangent.cross(VecTipNormal)
+		VecTipCurvature = VecTipTangent.cross(VecTipNormal)
 #		msgCsl("VecTipNormal "+ format(VecTipNormal))
-		self.VecTipCurvature.normalize()
+		VecTipCurvature.normalize()
 		if fp.TipInwardOffset != 0:
-			self.VecTip = Pt.add(self.VecTipCurvature.multiply(fp.TipInwardOffset))
-			self.VecTipCurvature.normalize()
+			VecTip = Pt.add(VecTipCurvature.multiply(fp.TipInwardOffset))
+			VecTipCurvature.normalize()
 		else:
-			self.VecTip = Pt
-#		msgCsl("VecTip "+ format(self.VecTip))
+			VecTip = Pt
+#		msgCsl("VecTip "+ format(VecTip))
+		self.VecTip = setVec(VecTip)
+		self.VecTipTangent = setVec(VecTipTangent)
+		self.VecTipCurvature = setVec(VecTipCurvature)
 		self.calcVecDirRod(fp)
 
 	def calcVecDirRod(self, fp):
-		self.VecDirRod = self.VecTip.sub(self.VecRoot)
+		self.VecDirRod = setVec(getVec(self.VecTip).sub(getVec(self.VecRoot)))
 #		msgCsl("VecDirRod "+ format(self.VecDirRod))
 
 	def calcVecRod(self, fp):
 #		if self.testWires(fp):
-			self.VecRodCenter = fp.CoordSystem.Tangent.Start
+			self.VecRodCenter = setVec(fp.CoordSystem.Tangent.Start)
 #			self.VecRodEdge = PtsToVec(fp.CoordSystem.Tangent.Start,fp.CoordSystem.Tangent.End)
 
 	def updateRootPosition(self, fp):
-		mDir = self.VecDirRod
+		mDir = getVec(self.VecDirRod)
 		if mDir != VecNul:
 			mDir = FreeCAD.Vector(mDir.x, mDir.y, mDir.z)
 			mDir.normalize()
 			mDir.multiply(-fp.RootOffset)
 			self.calcVecRod(fp)
-			mDir = mDir.sub(PtsToVec(self.VecRoot,self.VecRodCenter))
+			mDir = mDir.sub(PtsToVec(getVec(self.VecRoot),getVec(self.VecRodCenter)))
 			mPlacement = Placement(mDir,Rotation())
 			mPlacement = mPlacement.multiply(fp.CoordSystem.Tangent.Placement)
 			mPlacement = Placement(VecNul, Rotation(mDir, fp.AngleOffset), DiscretizedPoint(fp.RootWire, fp.RootPoint)).multiply(mPlacement)
@@ -538,12 +545,12 @@ class Rod:
 	def updateLength(self, fp):
 		if self.check(fp)["All"]:
 			if fp.CoordSystem.LinkedObject.TypeId in ["Part::Box","Part::Cylinder"]:
-				fp.CoordSystem.LinkedObject.Height = self.VecDirRod.Length + float(fp.RootOffset) + float(fp.TipOffset)
+				fp.CoordSystem.LinkedObject.Height = getVec(self.VecDirRod).Length + float(fp.RootOffset) + float(fp.TipOffset)
 #				msgCsl("indice VecDirRod: " + str(self.VecList["VecDirRod"]) + " vector VecDirRod: " + format(fp.VectorList[self.VecList["VecDirRod"]]))
 			if fp.CoordSystem.LinkedObject.TypeId == "PartDesign::Pad":
-				fp.CoordSystem.LinkedObject.Length = self.VecDirRod.Length + float(fp.RootOffset) + float(fp.TipOffset)
+				fp.CoordSystem.LinkedObject.Length = getVec(self.VecDirRod).Length + float(fp.RootOffset) + float(fp.TipOffset)
 			if fp.CoordSystem.LinkedObject.TypeId == "Part::Extrusion":
-				fp.CoordSystem.LinkedObject.LengthFwd = self.VecDirRod.Length + float(fp.RootOffset) + float(fp.TipOffset)
+				fp.CoordSystem.LinkedObject.LengthFwd = getVec(self.VecDirRod).Length + float(fp.RootOffset) + float(fp.TipOffset)
 
 	def updateAxis(self, obj, placmnt):
 		obj.Tangent.Placement = placmnt
@@ -553,9 +560,10 @@ class Rod:
 
 	def updatePosition(self,fp):
 		self.calcVecRoot(fp)
-		if self.check(fp)["All"]: self.calcVecTip(fp)
-		VecRoot = self.VecRoot
-		VecDirRod = self.VecDirRod
+		if self.check(fp)["All"]:
+			self.calcVecTip(fp)
+		VecRoot = getVec(self.VecRoot)
+		VecDirRod = getVec(self.VecDirRod)
 		mRot = FreeCAD.Rotation(FreeCAD.Vector(0,0,1), VecDirRod)
 #			msgCsl("VecRoot "+ format(VecRoot))
 		mPlacementAlign = Placement()
@@ -563,9 +571,9 @@ class Rod:
 		mPlacementAlign = FreeCAD.Placement(VecNul, mRot, VecRoot).multiply(mPlacementAlign)
 #			msgCsl("mPlacementAlign "+ format(mPlacementAlign))
 		self.updateAxis(fp.CoordSystem, mPlacementAlign)
-		if fp.AutoRotate and self.VecRootTangent != VecNul:
-			VecRootTangent = self.VecRootTangent
-			VecTipTangent = self.VecTipTangent
+		if fp.AutoRotate and getVec(self.VecRootTangent) != VecNul:
+			VecRootTangent = getVec(self.VecRootTangent)
+			VecTipTangent = getVec(self.VecTipTangent)
 			VecBisector = VecRootTangent.add(VecTipTangent).normalize()  # Vector mean of root and tip tangents
 #				msgCsl("VecBisector "+ format(VecBisector))
 			VecBisector.projectToPlane(VecNul,VecDirRod)  # projection in the normal plan of rod axis
