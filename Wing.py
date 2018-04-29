@@ -887,6 +887,8 @@ class CutWire:
 		obj.addProperty("App::PropertyLink","Wire","Wire", "")
 		obj.addProperty("App::PropertyFloat","StartPoint", "Wire","Start point of the root wire").StartPoint = 0.0
 		obj.addProperty("App::PropertyFloat","EndPoint", "Wire","End point of the root wire").EndPoint = 0.0
+		obj.addProperty("App::PropertyLink","StartPointObj","Wire","", -1)
+		obj.addProperty("App::PropertyLink","EndPointObj","Wire","", -1)
 		obj.addProperty("App::PropertyLink","LeftCut","Wire","", 1)
 		obj.addProperty("App::PropertyLink","RightCut","Wire","", 1)
 		obj.addProperty("App::PropertyEnumeration", "CutType", "CutPlane", "Define wire to be created").CutType = ["Left", "Right", "Both"]
@@ -907,27 +909,48 @@ class CutWire:
 	def onChanged(self, fp, prop):
 		# Do something when a property has changed
 #		msgCsl(self.__class__.__name__ + " class property change: " + str(prop) + "  Type of property :" + str(fp.getTypeIdOfProperty(prop)))
-		if self.check(fp) and prop in ["Wire", "StartPoint", "EndPoint", "CutType"]:
-			create = False
-			for mkey, mvalue in self.Initialized.items():
-				if not mvalue and (fp.CutType == "Both" or mkey == fp.CutType): create = True
-			if create: self.createCutWires(fp)
-			else: self.updateCutWires(fp)
-			self.deleteWires(fp)
+		if prop in ["Wire", "StartPoint", "EndPoint", "CutType"]:
+			if self.check(fp):
+				msgCsl("CutWire onChanged check&prop = true prop= " + str(prop))
+				create = False
+				for mkey, mvalue in self.Initialized.items():
+					if (mkey == fp.CutType) or (fp.CutType == "Both"):
+#						msgCsl("onChanged in if mkey, mkey= " + mkey + " fp.CutType= " + fp.CutType)
+#						msgCsl("mvalue= " + str(mvalue))
+						if not mvalue: create = True
+				if create: self.createCutWires(fp)
+				else: self.updateCutWires(fp)
+				self.deleteWires(fp)
 
 	def createCutWires(self, fp):
 		if fp.EndPoint > fp.StartPoint + 1:
 			type = fp.CutType
 			leftpts, rightpts = cutWire(fp.Wire, fp.StartPoint, fp.EndPoint, type)
-			if type == "Right" or (type == "Both" and not self.Initialized["Right"]):
+			if not self.Initialized["Right"]: #((type == "Right") or (type == "Both")) and (
+				msgCsl("createCutWires if right ok")
 				fp.RightCut = Draft.makeWire(rightpts, True, False)
+				msgCsl("createCutWires right makeWire")
 				fp.RightCut.Label = "RightCut"
-				self.Initialized[type] = True
-			if type == "Left" or (type == "Both" and not self.Initialized["Left"]):
+				msgCsl("createCutWires right label change")
+				self.Initialized["Right"] = True
+			if not self.Initialized["Left"]: #((type == "Left") or (type == "Both")) and (
+				msgCsl("Create left CutWire")
 				fp.LeftCut = Draft.makeWire(leftpts, True, False)
 				fp.LeftCut.Label = "LeftCut"
-				self.Initialized[type] = True
+				self.Initialized["Left"] = True
 			del leftpts, rightpts
+			if fp.StartPointObj == None:
+#				msgCsl("createCutWires before start makePoint")
+				fp.StartPointObj = Draft.makePoint(DiscretizedPoint(fp.Wire, fp.StartPoint))
+#				msgCsl("createCutWires after start makePoint")
+				fp.StartPointObj.Label = "StartPoint"
+				fp.StartPointObj.ViewObject.PointColor = (1.00,0.67,0.00, 0.0)
+				fp.StartPointObj.ViewObject.PointSize = 7.0
+			if fp.EndPointObj == None:
+				fp.EndPointObj = Draft.makePoint(DiscretizedPoint(fp.Wire, fp.EndPoint))
+				fp.EndPointObj.Label = "EndPoint"
+				fp.EndPointObj.ViewObject.PointColor = (1.00,0.67,0.00, 0.0)
+				fp.EndPointObj.ViewObject.PointSize = 7.0
 
 	def updateCutWires(self, fp):
 		if hasattr(fp.Wire.Shape, "Edge1"):
@@ -939,14 +962,19 @@ class CutWire:
 				if type in ["Right", "Both"]:
 					fp.RightCut.Points = rightpts
 				del leftpts, rightpts
+				setPointCoord(fp.StartPointObj, DiscretizedPoint(fp.Wire, fp.StartPoint))
+				setPointCoord(fp.EndPointObj, DiscretizedPoint(fp.Wire, fp.EndPoint))
 	
 	def deleteWires(self, fp):
+#		msgCsl("deleteWires starting...")
 		if fp.CutType == "Left": # and self.Initialized["Right"]:  # delete Right wires
-			if fp.RightCut != None: FreeCAD.ActiveDocument.removeObject(fp.RightCut.Name)
-			self.Initialized["Right"] = False
+			if fp.RightCut != None:
+				FreeCAD.ActiveDocument.removeObject(fp.RightCut.Name)
+				self.Initialized["Right"] = False
 		if fp.CutType == "Right": # and self.Initialized["Left"]:  # delete Left wires
-			if fp.LeftCut != None: FreeCAD.ActiveDocument.removeObject(fp.LeftCut.Name)
-			self.Initialized["Left"] = False			
+			if fp.LeftCut != None:
+				FreeCAD.ActiveDocument.removeObject(fp.LeftCut.Name)
+				self.Initialized["Left"] = False			
 
 class ViewProviderCutWire(ViewProviderGeneric):
 	
@@ -958,6 +986,8 @@ class ViewProviderCutWire(ViewProviderGeneric):
 		doc = FreeCAD.ActiveDocument
 		if obj.LeftCut != None:	doc.removeObject(obj.LeftCut.Name)
 		if obj.RightCut != None: doc.removeObject(obj.RightCut.Name)
+		if obj.StartPointObj != None: doc.removeObject(obj.StartPointObj.Name)
+		if obj.EndPointObj != None: doc.removeObject(obj.EndPointObj.Name)
 		return True
 
 
@@ -1058,18 +1088,18 @@ class ViewProviderSection(ViewProviderGeneric):
 
 def createWing():
 	msgCsl("createWing method starting...")
-	sel = FreeCADGui.Selection.getSelectionEx()
-	msgCsl("Content of selection: " + str(len(sel)))
+	sl = FreeCADGui.Selection.getSelectionEx()
+	msgCsl("Content of selection: " + str(len(sl)))
 	obj = FreeCAD.ActiveDocument.addObject("App::FeaturePython","Wing")  #FeaturePython
 	Wing(obj)
 	ViewProviderWing(obj.ViewObject,  "Aile-icon.svg")
-	if len(sel) > 0:
-		wobj = sel[0].Object
+	if len(sl) > 0:
+		wobj = sl[0].Object
 #		msgCsl(wobj.Proxy.__class__.__name__)
 		if wobj.Proxy.__class__.__name__ == "Profile":
 			obj.RootProfile = wobj
-	if len(sel) > 1:
-		wobj = sel[1].Object
+	if len(sl) > 1:
+		wobj = sl[1].Object
 		if wobj.Proxy.__class__.__name__ == "Profile":
 			obj.TipProfile = wobj
 		
@@ -1077,26 +1107,26 @@ def createWing():
 	FreeCADGui.SendMsgToActiveView("ViewFit")
 
 def createCoordSys():
-	sel = FreeCADGui.Selection.getSelectionEx()
-	msgCsl("Content of selection: " + str(len(sel)))
+	sl = FreeCADGui.Selection.getSelectionEx()
+	msgCsl("Content of selection: " + str(len(sl)))
 	obj = FreeCAD.ActiveDocument.addObject("App::FeaturePython", "CoordSystem")
 	CoordSys(obj)
 	ViewProviderCoordSys(obj.ViewObject, "WF_Axes.svg")
-	if len(sel) > 0:
-		pobj = sel[0].Object
+	if len(sl) > 0:
+		pobj = sl[0].Object
 		if pobj.TypeId in ["Part::Box", "Part::Extrusion", "Part::Cylinder", "PartDesign::Pad"]:
 			obj.LinkedObject = pobj
 	
 def createRod():
-	sel = FreeCADGui.Selection.getSelectionEx()
-	msgCsl("Content of selection: " + str(len(sel)))
+	sl = FreeCADGui.Selection.getSelectionEx()
+	msgCsl("Content of selection: " + str(len(sl)))
 	obj = FreeCAD.ActiveDocument.addObject("App::FeaturePython","Rod")
 	Rod(obj)
 	ViewProviderRod(obj.ViewObject, "Rod-icon.svg")
 
-	if len(sel) > 0:
+	if len(sl) > 0:
 		msgCsl("Wing found for linking Rod")
-		wobj = sel[0].Object
+		wobj = sl[0].Object
 		if wobj.Proxy.__class__.__name__ == "Wing":
 			msgCsl("Wing type found in selection")
 			if hasattr(wobj, "RootProfile"):
@@ -1105,13 +1135,13 @@ def createRod():
 				if wobj.TipProfile != None: obj.TipWire = wobj.TipProfile.Wire
 			obj.RootPoint = 1
 			obj.TipPoint = 1
-		if len(sel) > 1:
-			wobj1, wobj2 = sel[:2]
+		if len(sl) > 1:
+			wobj1, wobj2 = sl[:2]
 			if wobj2.Object.Proxy.__class__.__name__ == "CoordSys":
 				obj.CoordSystem = wobj2.Object
 			elif wobj1.TypeName == wobj2.TypeName == "Part::Part2DObjectPython":
-				if len(sel) > 2:
-					wobj = sel[2].Object
+				if len(sl) > 2:
+					wobj = sl[2].Object
 					if wobj.Proxy.__class__.__name__ == "CoordSys":
 						obj.CoordSystem = wobj
 				obj.RootWire = wobj1.Object
@@ -1122,15 +1152,15 @@ def createRod():
 	return obj
 
 def createWrapLeadingEdge():
-	sel = FreeCADGui.Selection.getSelectionEx()
-	msgCsl("Content of selection: " + str(len(sel)))
+	sl = FreeCADGui.Selection.getSelectionEx()
+	msgCsl("Content of selection: " + str(len(sl)))
 	obj = FreeCAD.ActiveDocument.addObject("App::FeaturePython", "WrapLeadingEdge")
 	WrapLeadingEdge(obj)
 	ViewProviderWrapLeadingEdge(obj.ViewObject, "WrapLeadingEdge-icon.svg")
 	obj.StartPoint = 1.0
 	obj.EndPoint = 2.0
-	if len(sel) > 0:
-		wobj = sel[0]
+	if len(sl) > 0:
+		wobj = sl[0]
 		if wobj.Object.Proxy.__class__.__name__ == "Profile":
 			msgCsl("Wing type found in selection for linking WrapLeadingEdge")
 			obj.Wire = wobj.Object.Wire
@@ -1149,35 +1179,38 @@ def createProfile():
 
 def createLeadingEdge():
 	msgCsl("createLeadingEdge method starting...")
-	sel = FreeCADGui.Selection.getSelectionEx()
+	sl = FreeCADGui.Selection.getSelectionEx()
 	obj = FreeCAD.ActiveDocument.addObject("App::FeaturePython","LeadingEdge")
 	LeadingEdge(obj)
 	ViewProviderLeadingEdge(obj.ViewObject, 'LeadingEdge-icon.svg')
-	if len(sel) > 1:
-		wobj1 = sel[0].Object
-		wobj2 = sel[1].Object
+	if len(sl) > 1:
+		wobj1 = sl[0].Object
+		wobj2 = sl[1].Object
 		if wobj1.TypeId == wobj2.TypeId == "Part::Part2DObjectPython":
 			obj.RootWire = wobj1
 			obj.TipWire = wobj2
 
 def createCutWire():
 	msgCsl("createCutWire method starting...")
-	sel = FreeCADGui.Selection.getSelectionEx()
+	sl = FreeCADGui.Selection.getSelectionEx()
 	obj = FreeCAD.ActiveDocument.addObject("App::FeaturePython","CutWire")
 	CutWire(obj)
 	ViewProviderCutWire(obj.ViewObject, 'CutWire-icon.svg')
-	if len(sel) > 0:
-		wobj = sel[0].Object
+	if len(sl) > 0:
+		wobj = sl[0].Object
 		if wobj.TypeId == "Part::Part2DObjectPython":
 			obj.Wire = wobj
+			if len(wobj.Points) > 2:
+				obj.StartPoint = 1.0
+				obj.EndPoint = 3.0
 
 def createSection():
 	msgCsl("createCutWire method starting...")
-	sel = FreeCADGui.Selection.getSelectionEx()
+	sl = FreeCADGui.Selection.getSelectionEx()
 	obj = FreeCAD.ActiveDocument.addObject("App::FeaturePython","Section")
 	Section(obj)
 	ViewProviderSection(obj.ViewObject, 'Section.svg')
-	if len(sel) > 0:
-		wobj = sel[0].Object
+	if len(sl) > 0:
+		wobj = sl[0].Object
 		if wobj.TypeId == "Part::Loft":
 			obj.SlicedObject = wobj

@@ -301,3 +301,8 @@ def getVec(vector):
 
 def setVec(Vector):
 	return [Vector.x, Vector.y, Vector.z]
+
+def setPointCoord(pointobj, vector):
+	pointobj.X = vector.x
+	pointobj.Y = vector.y
+	pointobj.Z = vector.z
