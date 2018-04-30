@@ -1,6 +1,6 @@
 import os, sys
 sys.path.append("/usr/lib/freecad/lib/")
-import WingDial
+import WingDial, SectionsDial
 import FreeCADGui, FreeCAD
 from PySide import QtCore, QtGui
 from WingLib import *
@@ -15,6 +15,8 @@ global iconPath
 iconPath = __dir__ + '/Icons/'
 global myDialog
 myDialog = None
+global mySectionsDialog
+mySectionsDialog = None
 
 # use "icons" as prefix which we used in the .ui file  
 QtCore.QDir.addSearchPath("icons", iconPath) 
@@ -226,10 +228,9 @@ class WingDialog():
 			self.widget.ui.CutWire_comboBox.setCurrentIndex(self.widget.ui.CutWire_comboBox.findText(self.CutWireObj.CutType))
 
 
-#myDialog = WingDialog()
 
 class CommandWingDialog:
-	"""Dislay a wing toolkit dialog to modify objects"""
+	"""Display a wing toolkit dialog to modify objects"""
 	
 	def GetResources(self):
 		msgCsl("Getting resources\n")
@@ -241,7 +242,7 @@ class CommandWingDialog:
 	def Activated(self):
 		global myDialog
 		if myDialog == None:
-			msgCsl("creating dialog")
+			msgCsl("Creating wing toolkit dialog")
 			myDialog = WingDialog()
 			myDialog.widget.show()
 		elif myDialog.widget.isHidden():
@@ -253,14 +254,177 @@ class CommandWingDialog:
 	def IsActive(self):
 		return True
 
-#FreeCADGui.addCommand("WingDialog", CommandWingDialog())
+class SectionsDialog():
+	
+	def __init__(self):
+		self.bboxOrigin = VecNul
+		self.bboxAxisZ = VecNul
+		self.bboxAxisX = VecNul
+		self.bboxXlength = 0.0
+		self.bboxYlength = 0.0
+		self.bboxZlength = 0.0
+		self.PlanesList = []
+		self.obj = None
+		
+		FCmw = FreeCADGui.getMainWindow()
+		self.widget = QtGui.QDockWidget() # create a new dckwidget
+		self.widget.ui = SectionsDial.Ui_Sections_DockWidget() # load the Ui script
+		self.widget.ui.setupUi(self.widget) # setup the ui
+		self.widget.setFeatures( QtGui.QDockWidget.DockWidgetMovable | QtGui.QDockWidget.DockWidgetFloatable|QtGui.QDockWidget.DockWidgetClosable )
+		FCmw.addDockWidget(QtCore.Qt.RightDockWidgetArea, self.widget) # add the widget to the main window
+		self.widget.hide()
+		
+		self.connections_for_button_clicked = { 
+							"SectionsDial_button_select_object"			: "SectionsDial_button_select_object",
+							"SectionsDial_button_OK"					: "SectionsDial_button_OK"}
+		self.connections_for_spin_changed = {
+							"SectionsDial_spinBox_Number"				: "SectionsDial_spinBox_Number"}
+#		self.connections_for_radiobutton_clicked = {
+#							"SectionsDial_radioButton_Distance"			: "SectionsDial_radioButton_Distance",
+#							"SectionsDial_radioButton_Number"			: "SectionsDial_radioButton_Number"}
+		self.connections_for_doubleSpin_changed = {
+							"SectionsDial_doubleSpinBox_StartOffset"	: "SectionsDial_doubleSpinBox_StartOffset",
+							"SectionsDial_doubleSpinBox_Distance"		: "SectionsDial_doubleSpinBox_Distance"}
+#		self.connections_for_checkbox_toggled = {
+#							"SectionsDial_checkBox_Distance"			: "SectionsDial_checkBox_Distance",
+#							"SectionsDial_radioButton_Number"			: "SectionsDial_radioButton_Number"}
+		self.widget.visibilityChanged.connect(self.Close)
+		
+		for m_key, m_val in self.connections_for_button_clicked.items():
+			#msgCsl( "Connecting : " + str(m_key) + " and " + str(m_val) )
+			QtCore.QObject.connect(getattr(self.widget.ui, str(m_key)), QtCore.SIGNAL("clicked()"),getattr(self, str(m_val)))
+#		for m_key, m_val in self.connections_for_slider_changed.items():
+#			#msgCsl( "Connecting : " + str(getattr(self.widget.ui, str(m_key))) + " and " + str(getattr(self.obj, str(m_val))) )
+#			QtCore.QObject.connect(getattr(self.widget.ui, str(m_key)), QtCore.SIGNAL("valueChanged(int)"),getattr(self, str(m_val)))
+		for m_key, m_val in self.connections_for_doubleSpin_changed.items():
+			#msgCsl( "Connecting : " + str(getattr(self.widget.ui, str(m_key))) + " and " + str(getattr(self.obj, str(m_val))) )
+			QtCore.QObject.connect(getattr(self.widget.ui, str(m_key)), QtCore.SIGNAL("valueChanged(double)"),getattr(self, str(m_val)))
+		for m_key, m_val in self.connections_for_spin_changed.items():
+			#msgCsl( "Connecting : " + str(m_key) + " and " + str(m_val) )
+			QtCore.QObject.connect(getattr(self.widget.ui, str(m_key)), QtCore.SIGNAL("valueChanged(int)"),getattr(self, str(m_val)))
+#		for m_key, m_val in self.connections_for_radiobutton_clicked.items():
+#			#print_msg( "Connecting : " + str(m_key) + " and " + str(m_val) )
+#			QtCore.QObject.connect(getattr(self.widget.ui, str(m_key)), QtCore.SIGNAL(_fromUtf8("clicked(bool)")),getattr(self, str(m_val)))
 
-#def showWingDialog():
-#	if myDialog.isHidden():
-#		myDialog.show()
-#	else:
-#		myDialog.hide()
-#	return
+	def Close(self, visible):
+		if not visible:
+			self.obj = None
+			self.bboxZlength = 0
+			self.widget.ui.SectionsDial_doubleSpinBox_Distance.setValue(0)
+			self.widget.ui.SectionsDial_radioButton_Number = 1
+			self.widget.ui.SectionsDial_doubleSpinBox_StartOffset.setValue(0)
+			self.SectionsDial_button_OK()
 
-#if __name__ == '__main__':
-#    myDialog = SectionDialog()
+	def SectionsDial_button_select_object(self):
+		sl = FreeCADGui.Selection.getSelectionEx()
+		if len(sl) > 0:
+			obj = sl[0].Object
+			if hasattr(obj, "Shape"):
+				if obj.Shape.Volume > 0.001 :
+					bbox = obj.Shape.BoundBox
+					self.bboxZlength = bbox.ZLength
+					if self.bboxZlength == 0: return
+					self.obj = obj
+					self.widget.ui.SectionsDial_info_selected_object.setText(obj.Label + "(" + obj.Name + ")")
+					self.bboxOrigin = FreeCAD.Vector(bbox.XMin, bbox.YMin, bbox.ZMin)
+					self.bboxAxisX = PtsToVec(self.bboxOrigin, FreeCAD.Vector(bbox.XMax, bbox.YMin, bbox.ZMin))
+					self.bboxAxisZ = PtsToVec(self.bboxOrigin, Vector(bbox.XMin, bbox.YMin, bbox.ZMax))
+					self.bboxXlength = bbox.XLength
+					self.bboxYlength = bbox.YLength
+					if self.widget.ui.SectionsDial_spinBox_Number.value() == 0: self.widget.ui.SectionsDial_spinBox_Number.setValue(1)
+#					self.widget.ui.SectionsDial_radioButton_Number.setDown(True)
+					distance = (self.bboxZlength - self.widget.ui.SectionsDial_doubleSpinBox_StartOffset.value()) / (self.widget.ui.SectionsDial_spinBox_Number.value())
+					self.widget.ui.SectionsDial_doubleSpinBox_Distance.setMaximum(self.bboxZlength - self.widget.ui.SectionsDial_doubleSpinBox_StartOffset.value())
+					msgCsl("toto0 ZLength " + str(self.bboxZlength))
+					self.widget.ui.SectionsDial_doubleSpinBox_Distance.setValue(distance)
+					self.widget.ui.SectionsDial_doubleSpinBox_StartOffset.setMaximum(self.bboxZlength)
+					self.PlanesUpate()
+
+	def PlanesUpate(self):
+		nbplane = len(self.PlanesList)
+		while nbplane > self.widget.ui.SectionsDial_spinBox_Number.value():
+			if self.PlanesList[nbplane - 1] != None:
+				FreeCAD.ActiveDocument.removeObject(self.PlanesList[nbplane - 1].Name)
+			self.PlanesList.remove(self.PlanesList[nbplane - 1])
+			nbplane = len(self.PlanesList)
+		while nbplane < self.widget.ui.SectionsDial_spinBox_Number.value():
+			mplane = FreeCAD.ActiveDocument.addObject("Part::Plane","Plane")
+			mplane.ViewObject.ShapeColor = (0.33,0.67,1.00)
+			mplane.ViewObject.LineColor = (1.00,0.4,0.00)
+			mplane.ViewObject.LineWidth = 1.00
+			mplane.ViewObject.Transparency = 50
+			mplane.Length = self.bboxXlength
+			mplane.Width = self.bboxYlength
+			self.PlanesList.append(mplane)
+			nbplane = len(self.PlanesList)
+		mrot = FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), self.bboxAxisX)
+		mplacement = FreeCAD.Placement(VecNul, mrot)
+		mrot = FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), self.bboxAxisZ)
+		mplacement = FreeCAD.Placement(self.bboxOrigin, mrot).multiply(mplacement)
+		distance = self.widget.ui.SectionsDial_doubleSpinBox_Distance.value() #(self.bboxZlength - self.widget.ui.SectionsDial_doubleSpinBox_StartOffset.value()) / (self.widget.ui.SectionsDial_spinBox_Number.value())
+#		if distance <= 0: return #should be checked in SectionsDial_button_select_object method
+		i = 0
+		for mplane in self.PlanesList:
+			mplane.Placement = mplacement
+			self.bboxAxisZ.normalize()
+			translation = self.widget.ui.SectionsDial_doubleSpinBox_StartOffset.value() + i * distance
+			if translation > 0: mplane.Placement.move(self.bboxAxisZ.multiply(translation))
+			i += 1
+
+	def SectionsDial_button_OK(self):
+		nbplane = len(self.PlanesList)
+		while nbplane > 0:
+			if self.PlanesList[nbplane - 1] != None:
+				FreeCAD.ActiveDocument.removeObject(self.PlanesList[nbplane - 1].Name)
+			self.PlanesList.remove(self.PlanesList[nbplane - 1])
+			nbplane = len(self.PlanesList)
+		self.widget.hide()
+
+	def SectionsDial_spinBox_Number(self, value):
+		distance = (self.bboxZlength - self.widget.ui.SectionsDial_doubleSpinBox_StartOffset.value()) / (value - 1)
+		if self.widget.ui.SectionsDial_checkBox_Distance.isChecked() or (self.widget.ui.SectionsDial_doubleSpinBox_Distance.value() > distance):
+			self.widget.ui.SectionsDial_doubleSpinBox_Distance.setValue(distance)
+		self.PlanesUpate()
+
+	def SectionsDial_doubleSpinBox_StartOffset(self, value):
+		self.widget.ui.SectionsDial_doubleSpinBox_Distance.setMaximum(self.bboxZlength - value)
+#		if self.widget.ui.SectionsDial_checkBox_Distance.isChecked():
+		if self.widget.ui.SectionsDial_checkBox_Number.isChecked():
+			self.SectionsDial_doubleSpinBox_Distance(self.widget.ui.SectionsDial_doubleSpinBox_Distance.value())
+		else:
+			self.SectionsDial_spinBox_Number(self.widget.ui.SectionsDial_spinBox_Number.value())
+#		self.PlanesUpate()
+
+	def SectionsDial_doubleSpinBox_Distance(self, value):
+		number = int((self.bboxZlength - self.widget.ui.SectionsDial_doubleSpinBox_StartOffset.value()) / value) + 1
+		if self.widget.ui.SectionsDial_checkBox_Number.isChecked() or (self.widget.ui.SectionsDial_spinBox_Number.value() > number):
+			if number <= 0: number = 1
+			self.widget.ui.SectionsDial_spinBox_Number.setValue(number)
+		self.PlanesUpate()
+
+
+class CommandSectionsDialog:
+	"""Display a dialog to create sections"""
+	
+	def GetResources(self):
+		msgCsl("Getting resources\n")
+		icon = os.path.join( iconPath , 'Sections.svg')
+		return {'Pixmap'  : icon , # the name of a svg file available in the resources
+			'MenuText': "Sections dialog" ,
+			'ToolTip' : "Open a dialog to create sections"}
+
+	def Activated(self):
+		global mySectionsDialog
+		if mySectionsDialog == None:
+			msgCsl("Creating sections dialog")
+			mySectionsDialog = SectionsDialog()
+			mySectionsDialog.widget.show()
+		elif mySectionsDialog.widget.isHidden():
+			mySectionsDialog.widget.show()
+		else:
+			mySectionsDialog.widget.hide()
+		return
+
+	def IsActive(self):
+		return True
+
