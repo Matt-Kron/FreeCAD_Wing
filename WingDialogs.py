@@ -233,7 +233,6 @@ class CommandWingDialog:
 	"""Display a wing toolkit dialog to modify objects"""
 	
 	def GetResources(self):
-		msgCsl("Getting resources\n")
 		icon = os.path.join( iconPath , 'WingDial.svg')
 		return {'Pixmap'  : icon , # the name of a svg file available in the resources
 			'MenuText': "Wing toolkit dialog" ,
@@ -259,10 +258,18 @@ class SectionsDialog():
 	def __init__(self):
 		self.bboxOrigin = VecNul
 		self.bboxAxisZ = VecNul
+		self.bboxAxisY = VecNul
 		self.bboxAxisX = VecNul
+		self.planeToX = VecNul
+		self.planeToNormal = VecNul
+		self.planeLength = 0.0
+		self.planeWidth = 0.0
+		self.bboxLength = 0.0
 		self.bboxXlength = 0.0
 		self.bboxYlength = 0.0
 		self.bboxZlength = 0.0
+		self.placement = FreeCAD.Placement()
+		self.maxDist = 0.0
 		self.PlanesList = []
 		self.obj = None
 		
@@ -279,9 +286,10 @@ class SectionsDialog():
 							"SectionsDial_button_OK"					: "SectionsDial_button_OK"}
 		self.connections_for_spin_changed = {
 							"SectionsDial_spinBox_Number"				: "SectionsDial_spinBox_Number"}
-#		self.connections_for_radiobutton_clicked = {
-#							"SectionsDial_radioButton_Distance"			: "SectionsDial_radioButton_Distance",
-#							"SectionsDial_radioButton_Number"			: "SectionsDial_radioButton_Number"}
+		self.connections_for_radiobutton_clicked = {
+							"SectionsDial_radioButton_XY"				: "calculateParam",
+							"SectionsDial_radioButton_XZ"				: "calculateParam",
+							"SectionsDial_radioButton_YZ"				: "calculateParam"}
 		self.connections_for_doubleSpin_changed = {
 							"SectionsDial_doubleSpinBox_StartOffset"	: "SectionsDial_doubleSpinBox_StartOffset",
 							"SectionsDial_doubleSpinBox_Distance"		: "SectionsDial_doubleSpinBox_Distance"}
@@ -302,16 +310,21 @@ class SectionsDialog():
 		for m_key, m_val in self.connections_for_spin_changed.items():
 			#msgCsl( "Connecting : " + str(m_key) + " and " + str(m_val) )
 			QtCore.QObject.connect(getattr(self.widget.ui, str(m_key)), QtCore.SIGNAL("valueChanged(int)"),getattr(self, str(m_val)))
-#		for m_key, m_val in self.connections_for_radiobutton_clicked.items():
-#			#print_msg( "Connecting : " + str(m_key) + " and " + str(m_val) )
-#			QtCore.QObject.connect(getattr(self.widget.ui, str(m_key)), QtCore.SIGNAL(_fromUtf8("clicked(bool)")),getattr(self, str(m_val)))
+		for m_key, m_val in self.connections_for_radiobutton_clicked.items():
+			#print_msg( "Connecting : " + str(m_key) + " and " + str(m_val) )
+			QtCore.QObject.connect(getattr(self.widget.ui, str(m_key)), QtCore.SIGNAL(_fromUtf8("clicked(bool)")),getattr(self, str(m_val)))
+
+		if self.widget.ui.SectionsDial_spinBox_Number.value() == 0: self.widget.ui.SectionsDial_spinBox_Number.setValue(1)
+		self.widget.ui.SectionsDial_radioButton_XY.setChecked(True)
 
 	def Close(self, visible):
 		if not visible:
 			self.obj = None
-			self.bboxZlength = 0
-			self.widget.ui.SectionsDial_doubleSpinBox_Distance.setValue(0)
-			self.widget.ui.SectionsDial_radioButton_Number = 1
+			self.bboxXlength = 0.0
+			self.bboxYlength = 0.0
+			self.bboxZlength = 0.0
+			self.widget.ui.SectionsDial_doubleSpinBox_Distance.setValue(0.01)
+			self.widget.ui.SectionsDial_spinBox_Number.setValue(1)
 			self.widget.ui.SectionsDial_doubleSpinBox_StartOffset.setValue(0)
 			self.SectionsDial_button_OK()
 
@@ -322,23 +335,69 @@ class SectionsDialog():
 			if hasattr(obj, "Shape"):
 				if obj.Shape.Volume > 0.001 :
 					bbox = obj.Shape.BoundBox
-					self.bboxZlength = bbox.ZLength
-					if self.bboxZlength == 0: return
 					self.obj = obj
 					self.widget.ui.SectionsDial_info_selected_object.setText(obj.Label + "(" + obj.Name + ")")
 					self.bboxOrigin = FreeCAD.Vector(bbox.XMin, bbox.YMin, bbox.ZMin)
 					self.bboxAxisX = PtsToVec(self.bboxOrigin, FreeCAD.Vector(bbox.XMax, bbox.YMin, bbox.ZMin))
+					self.bboxAxisY = PtsToVec(self.bboxOrigin, FreeCAD.Vector(bbox.XMin, bbox.YMax, bbox.ZMin))
 					self.bboxAxisZ = PtsToVec(self.bboxOrigin, Vector(bbox.XMin, bbox.YMin, bbox.ZMax))
 					self.bboxXlength = bbox.XLength
 					self.bboxYlength = bbox.YLength
-					if self.widget.ui.SectionsDial_spinBox_Number.value() == 0: self.widget.ui.SectionsDial_spinBox_Number.setValue(1)
-#					self.widget.ui.SectionsDial_radioButton_Number.setDown(True)
-					distance = (self.bboxZlength - self.widget.ui.SectionsDial_doubleSpinBox_StartOffset.value()) / (self.widget.ui.SectionsDial_spinBox_Number.value())
-					self.widget.ui.SectionsDial_doubleSpinBox_Distance.setMaximum(self.bboxZlength - self.widget.ui.SectionsDial_doubleSpinBox_StartOffset.value())
-					msgCsl("toto0 ZLength " + str(self.bboxZlength))
-					self.widget.ui.SectionsDial_doubleSpinBox_Distance.setValue(distance)
-					self.widget.ui.SectionsDial_doubleSpinBox_StartOffset.setMaximum(self.bboxZlength)
-					self.PlanesUpate()
+					self.bboxZlength = bbox.ZLength
+					self.calculateParam()
+				else:
+					msgCsl("The shape is not a volume")
+
+	def calculateParam(self):
+		self.removePlanes()
+		i = 1
+		if self.widget.ui.SectionsDial_radioButton_XY.isChecked():
+			msgCsl("radiobutton XY checked")
+			self.bboxLength = self.bboxZlength
+			self.planeToX = self.bboxAxisX
+			self.planeToNormal = self.bboxAxisZ
+			self.planeLength = self.bboxXlength
+			self.planeWidth = self.bboxYlength
+		elif self.widget.ui.SectionsDial_radioButton_XZ.isChecked():
+			msgCsl("radiobutton XZ checked")
+			self.bboxLength = self.bboxYlength
+			self.planeToX = self.bboxAxisX
+			self.planeToNormal = self.bboxAxisY
+			self.planeLength = self.bboxXlength
+			self.planeWidth = self.bboxZlength
+			i = -1
+		elif self.widget.ui.SectionsDial_radioButton_YZ.isChecked():
+			msgCsl("radiobutton YZ checked")
+			self.bboxLength = self.bboxXlength
+			self.planeToX = self.bboxAxisY
+			self.planeToNormal = self.bboxAxisX
+			self.planeLength = self.bboxYlength
+			self.planeWidth = self.bboxZlength
+		mrot = FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), self.planeToX)
+		mplacement = FreeCAD.Placement(VecNul, mrot)
+		mrot = FreeCAD.Rotation(FreeCAD.Vector(0, 0, i * 1), self.planeToNormal)
+		mplacement = FreeCAD.Placement(self.bboxOrigin, mrot).multiply(mplacement)
+		self.placement = mplacement
+		distance = self.bboxLength / 10.0
+		self.widget.ui.SectionsDial_doubleSpinBox_Distance.setMaximum(self.bboxLength)
+		self.widget.ui.SectionsDial_doubleSpinBox_Distance.setValue(distance)
+		self.widget.ui.SectionsDial_doubleSpinBox_StartOffset.setMaximum(self.bboxLength)
+		self.PlanesUpate()
+
+	def calculateDistance(self):
+		if self.widget.ui.SectionsDial_spinBox_Number.value() > 1:
+			distance = (self.bboxLength - self.widget.ui.SectionsDial_doubleSpinBox_StartOffset.value()) / (self.widget.ui.SectionsDial_spinBox_Number.value() - 1)
+			return distance
+		else:
+			return self.widget.ui.SectionsDial_doubleSpinBox_Distance.value()
+
+#	def maxDistance(self):
+#		self.maxDist = self.bboxLength - self.widget.ui.SectionsDial_doubleSpinBox_StartOffset.value()
+
+	def calculateNumber(self):
+		number = int((self.bboxLength - self.widget.ui.SectionsDial_doubleSpinBox_StartOffset.value())
+						/ self.widget.ui.SectionsDial_doubleSpinBox_Distance.value()) + 1
+		return number
 
 	def PlanesUpate(self):
 		nbplane = len(self.PlanesList)
@@ -353,53 +412,73 @@ class SectionsDialog():
 			mplane.ViewObject.LineColor = (1.00,0.4,0.00)
 			mplane.ViewObject.LineWidth = 1.00
 			mplane.ViewObject.Transparency = 50
-			mplane.Length = self.bboxXlength
-			mplane.Width = self.bboxYlength
 			self.PlanesList.append(mplane)
 			nbplane = len(self.PlanesList)
-		mrot = FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), self.bboxAxisX)
-		mplacement = FreeCAD.Placement(VecNul, mrot)
-		mrot = FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), self.bboxAxisZ)
-		mplacement = FreeCAD.Placement(self.bboxOrigin, mrot).multiply(mplacement)
-		distance = self.widget.ui.SectionsDial_doubleSpinBox_Distance.value() #(self.bboxZlength - self.widget.ui.SectionsDial_doubleSpinBox_StartOffset.value()) / (self.widget.ui.SectionsDial_spinBox_Number.value())
-#		if distance <= 0: return #should be checked in SectionsDial_button_select_object method
+			mplane.Length = self.planeLength
+			mplane.Width = self.planeWidth
+		distance = self.widget.ui.SectionsDial_doubleSpinBox_Distance.value()
 		i = 0
 		for mplane in self.PlanesList:
-			mplane.Placement = mplacement
-			self.bboxAxisZ.normalize()
+			mplane.Placement = self.placement
+			self.planeToNormal.normalize()
+			msgCsl("self.planeToNormal: " + format(self.planeToNormal))
 			translation = self.widget.ui.SectionsDial_doubleSpinBox_StartOffset.value() + i * distance
-			if translation > 0: mplane.Placement.move(self.bboxAxisZ.multiply(translation))
+			if translation > 0: mplane.Placement.move(self.planeToNormal.multiply(translation))
 			i += 1
 
-	def SectionsDial_button_OK(self):
+	def removePlanes(self):
 		nbplane = len(self.PlanesList)
 		while nbplane > 0:
 			if self.PlanesList[nbplane - 1] != None:
 				FreeCAD.ActiveDocument.removeObject(self.PlanesList[nbplane - 1].Name)
 			self.PlanesList.remove(self.PlanesList[nbplane - 1])
 			nbplane = len(self.PlanesList)
+
+	def SectionsDial_button_OK(self):
+		self.removePlanes()
 		self.widget.hide()
 
 	def SectionsDial_spinBox_Number(self, value):
-		distance = (self.bboxZlength - self.widget.ui.SectionsDial_doubleSpinBox_StartOffset.value()) / (value - 1)
-		if self.widget.ui.SectionsDial_checkBox_Distance.isChecked() or (self.widget.ui.SectionsDial_doubleSpinBox_Distance.value() > distance):
+		distance = self.calculateDistance()
+		if self.widget.ui.SectionsDial_checkBox_Number.isChecked() and self.widget.ui.SectionsDial_checkBox_Distance.isChecked():
 			self.widget.ui.SectionsDial_doubleSpinBox_Distance.setValue(distance)
+		elif (not self.widget.ui.SectionsDial_checkBox_Number.isChecked()) and self.widget.ui.SectionsDial_checkBox_Distance.isChecked():
+			self.widget.ui.SectionsDial_doubleSpinBox_Distance.setValue(distance)
+		elif (not self.widget.ui.SectionsDial_checkBox_Number.isChecked()) and (not self.widget.ui.SectionsDial_checkBox_Distance.isChecked()):
+			maxNumber = self.calculateNumber()
+			if value > maxNumber:
+				self.widget.ui.SectionsDial_spinBox_Number.setValue(maxNumber)
+		else:
+			return
 		self.PlanesUpate()
 
 	def SectionsDial_doubleSpinBox_StartOffset(self, value):
-		self.widget.ui.SectionsDial_doubleSpinBox_Distance.setMaximum(self.bboxZlength - value)
-#		if self.widget.ui.SectionsDial_checkBox_Distance.isChecked():
-		if self.widget.ui.SectionsDial_checkBox_Number.isChecked():
-			self.SectionsDial_doubleSpinBox_Distance(self.widget.ui.SectionsDial_doubleSpinBox_Distance.value())
+		distance = self.widget.ui.SectionsDial_doubleSpinBox_Distance.value()
+		number = self.widget.ui.SectionsDial_spinBox_Number.value()
+		if self.widget.ui.SectionsDial_checkBox_Number.isChecked() and self.widget.ui.SectionsDial_checkBox_Distance.isChecked():
+			self.SectionsDial_spinBox_Number(number)
+		elif (not self.widget.ui.SectionsDial_checkBox_Number.isChecked()) and self.widget.ui.SectionsDial_checkBox_Distance.isChecked():
+			self.SectionsDial_spinBox_Number(number)
+		elif self.widget.ui.SectionsDial_checkBox_Number.isChecked() and (not self.widget.ui.SectionsDial_checkBox_Distance.isChecked()):
+			self.SectionsDial_doubleSpinBox_Distance(distance)
 		else:
-			self.SectionsDial_spinBox_Number(self.widget.ui.SectionsDial_spinBox_Number.value())
-#		self.PlanesUpate()
+			distance = self.widget.ui.SectionsDial_doubleSpinBox_Distance.value()
+			number = self.widget.ui.SectionsDial_spinBox_Number.value()
+			if (value + (number - 1) * distance) > self.bboxLength:
+				self.widget.ui.SectionsDial_doubleSpinBox_StartOffset.setValue(self.bboxLength - (number - 1) * distance)
+			self.PlanesUpate()
 
 	def SectionsDial_doubleSpinBox_Distance(self, value):
-		number = int((self.bboxZlength - self.widget.ui.SectionsDial_doubleSpinBox_StartOffset.value()) / value) + 1
-		if self.widget.ui.SectionsDial_checkBox_Number.isChecked() or (self.widget.ui.SectionsDial_spinBox_Number.value() > number):
-			if number <= 0: number = 1
+		number = self.calculateNumber()
+		if self.widget.ui.SectionsDial_checkBox_Number.isChecked() and self.widget.ui.SectionsDial_checkBox_Distance.isChecked():
 			self.widget.ui.SectionsDial_spinBox_Number.setValue(number)
+		elif self.widget.ui.SectionsDial_checkBox_Number.isChecked() and (not self.widget.ui.SectionsDial_checkBox_Distance.isChecked()):
+			self.widget.ui.SectionsDial_spinBox_Number.setValue(number)
+		elif (not self.widget.ui.SectionsDial_checkBox_Number.isChecked()) and (not self.widget.ui.SectionsDial_checkBox_Distance.isChecked()):
+			distance = self.calculateDistance()
+			if value > distance: self.widget.ui.SectionsDial_doubleSpinBox_Distance.setValue(distance)
+		else:
+			return
 		self.PlanesUpate()
 
 
@@ -407,7 +486,6 @@ class CommandSectionsDialog:
 	"""Display a dialog to create sections"""
 	
 	def GetResources(self):
-		msgCsl("Getting resources\n")
 		icon = os.path.join( iconPath , 'Sections.svg')
 		return {'Pixmap'  : icon , # the name of a svg file available in the resources
 			'MenuText': "Sections dialog" ,
