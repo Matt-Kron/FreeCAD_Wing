@@ -60,6 +60,10 @@ class WingDialog():
 							"CutWire_doubleSpinBox_start"	: "CutWireDbleSpinBoxStart"}
 #		self.connections_for_combobox_changed = {
 #							"CutWire_comboBox"				: "CutWire_comboBox"}
+		self.connections_for_radiobutton_clicked = {
+							"Section_radioButton_XY"		: "SectionChangeDirection",
+							"Section_radioButton_XZ"		: "SectionChangeDirection",
+							"Section_radioButton_YZ"		: "SectionChangeDirection"}
 		
 		for m_key, m_val in self.connections_for_button_clicked.items():
 			#msgCsl( "Connecting : " + str(m_key) + " and " + str(m_val) )
@@ -70,6 +74,9 @@ class WingDialog():
 		for m_key, m_val in self.connections_for_doubleSpin_changed.items():
 			#msgCsl( "Connecting : " + str(getattr(self.ui, str(m_key))) + " and " + str(getattr(self.obj, str(m_val))) )
 			QtCore.QObject.connect(getattr(self.widget.ui, str(m_key)), QtCore.SIGNAL("valueChanged(double)"),getattr(self, str(m_val)))
+		for m_key, m_val in self.connections_for_radiobutton_clicked.items():
+			#print_msg( "Connecting : " + str(m_key) + " and " + str(m_val) )
+			QtCore.QObject.connect(getattr(self.widget.ui, str(m_key)), QtCore.SIGNAL(_fromUtf8("clicked(bool)")),getattr(self, str(m_val)))
 #		for m_key, m_val in self.connections_for_combobox_changed.items():
 #			#msgCsl( "Connecting : " + str(m_key) + " and " + str(m_val) )                            
 #			QtCore.QObject.connect(getattr(self.widget.ui, str(m_key)), QtCore.SIGNAL(_fromUtf8("currentIndexChanged(QString)")),getattr(self, str(m_val)))                      
@@ -97,11 +104,32 @@ class WingDialog():
 				msgCsl("Section object found")
 				self.SectionObj = wobj
 				self.widget.ui.Section_info_selected_object.setText(wobj.Label + "(" + wobj.Name + ")")
-				max = wobj.SlicedObject.Shape.BoundBox.ZLength
-				self.widget.ui.Section_doubleSpinBox.setMaximum(max)
-				self.widget.ui.Section_horizontalSlider.setMaximum(int(max))
-				self.widget.ui.Section_doubleSpinBox.setValue(wobj.Offset)
+				self.SectionUpdateParam()
 				self.SectionDbleSpin()
+
+	def SectionUpdateParam(self):
+		if self.SectionObj.RefPlane == "XY": self.widget.ui.Section_radioButton_XY.setChecked(True)
+		if self.SectionObj.RefPlane == "XZ": self.widget.ui.Section_radioButton_XZ.setChecked(True)
+		if self.SectionObj.RefPlane == "YZ": self.widget.ui.Section_radioButton_YZ.setChecked(True)
+		if self.widget.ui.Section_radioButton_XY.isChecked():
+			max = self.SectionObj.SlicedObject.Shape.BoundBox.ZLength
+		elif self.widget.ui.Section_radioButton_XZ.isChecked():
+			max = self.SectionObj.SlicedObject.Shape.BoundBox.YLength
+		elif self.widget.ui.Section_radioButton_YZ.isChecked():
+			max = self.SectionObj.SlicedObject.Shape.BoundBox.XLength
+		self.widget.ui.Section_doubleSpinBox.setMaximum(max)
+		self.widget.ui.Section_horizontalSlider.setMaximum(int(max))
+		self.widget.ui.Section_doubleSpinBox.setValue(self.SectionObj.Offset)
+
+	def SectionChangeDirection(self):
+		if self.widget.ui.Section_radioButton_XY.isChecked():
+			self.SectionObj.RefPlane = "XY"
+		elif self.widget.ui.Section_radioButton_XZ.isChecked():
+			self.SectionObj.RefPlane = "XZ"
+		elif self.widget.ui.Section_radioButton_YZ.isChecked():
+			self.SectionObj.RefPlane = "YZ"
+		self.SectionUpdateParam()
+		FreeCAD.ActiveDocument.recompute()
 
 	def SectionApply(self):
 		if hasattr(self, "SectionObj"):

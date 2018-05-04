@@ -298,8 +298,12 @@ class CoordSys:
 			ObjectOrigin = fp.LinkedObject.Shape.Vertex1.Point
 			ObjectOk = True
 		elif fp.LinkedObject.TypeId == "PartDesign::Pad":
-			ObjectEdges = fp.LinkedObject.OutList[0].Shape.Edges
-			ObjectCenterOfMass = fp.LinkedObject.OutList[0].Shape.CenterOfMass
+			nb = len(fp.LinkedObject.OutList[0].Shape.Edges)
+			mface = fp.LinkedObject.Shape.Faces[nb + 1]
+#			ObjectEdges = fp.LinkedObject.OutList[0].Shape.Edges
+#			ObjectCenterOfMass = fp.LinkedObject.OutList[0].Shape.CenterOfMass
+			ObjectEdges = mface.Edges
+			ObjectCenterOfMass = mface.CenterOfMass
 			ObjectOrigin = fp.LinkedObject.OutList[0].Placement.Base
 			ObjectOk = True
 		elif fp.LinkedObject.TypeId == "Part::Cylinder":
@@ -321,7 +325,7 @@ class CoordSys:
 				if ObjectOk:
 					index = int(fp.VertexNum % len(ObjectEdges))
 					if fp.LinkedObject.TypeId == "PartDesign::Pad":
-						fp.LinkedObject.OutList[0].Placement = fp.Tangent.Placement
+						fp.LinkedObject.OutList[0].AttachmentOffset = fp.Tangent.Placement
 					else:
 						fp.LinkedObject.Placement = fp.Tangent.Placement
 					ObjectOk, ObjectEdges, ObjectCenterOfMass, ObjectOrigin = self.updateRefFace(fp)
@@ -351,7 +355,7 @@ class CoordSys:
 					mPlacement2 = Placement(VecNul, Rotation(fp.Normal.End.sub(fp.Normal.Start), fp.Angle), fp.Tangent.Start)
 					fp.LocalPlacement = mPlacement2.multiply(fp.LocalPlacement)
 					if fp.LinkedObject.TypeId == "PartDesign::Pad":
-						fp.LinkedObject.OutList[0].Placement = fp.LocalPlacement.multiply(fp.LinkedObject.OutList[0].Placement)
+						fp.LinkedObject.OutList[0].AttachmentOffset = fp.LocalPlacement.multiply(fp.LinkedObject.OutList[0].AttachmentOffset)
 					else:
 						fp.LinkedObject.Placement = fp.LocalPlacement.multiply(fp.LinkedObject.Placement)
 	#				msgCsl("LocalPlacement: " + format(fp.LocalPlacement))
@@ -814,7 +818,7 @@ class LeadingEdge:
 			vec1 = PtsToVec(intersectPt, fp.TipWire.Shape.Vertexes[i].Point)
 			vec2 = PtsToVec(intersectPt, fp.TipWire.Shape.Vertexes[i + 1].Point)
 			mdot = vec1.dot(vec2)
-			if mdot <= 0:
+			if mdot <= 0:  #intersection point is in edge if dot is negative (vectors are in opposite directions)
 				fp.TipEndPoint = i + vec1.Length / (vec1.Length + vec2.Length) # TipEndPoint is TipWire point index i + part of edge[i]
 				return True
 		return False
@@ -995,80 +999,174 @@ class Section:
 
 	def __init__(self, obj):
 		msgCsl("class " + self.__class__.__name__ + ", __init__")
-		obj.addProperty("App::PropertyLink","SlicedObject","Section", "Sliced object")
-		obj.addProperty("App::PropertyFloat","Offset", "Settings","Distance from the object origin").Offset = 0.001
-		obj.addProperty("App::PropertyLink","CutPlane","Section","Plane of the section", 1)
-		obj.addProperty("App::PropertyLink","Section","Section","Section's wire", 1)
-#		obj.addProperty("App::PropertyBool", "createSection", "Wing", "Make the loft from the root and tip wires").MakeLoft = False
+		obj.addProperty("App::PropertyLink", "SlicedObject", "Section", "Sliced object")
+		obj.addProperty("App::PropertyFloat", "Offset", "Settings", "Distance from the object origin").Offset = 0.001
+		obj.addProperty("App::PropertyEnumeration", "RefPlane", "Settings", "Reference plane of the section").RefPlane = ["XY", "XZ", "YZ"]
+		obj.addProperty("App::PropertyLink", "CutPlane", "Section", "Plane of the section", 1)
+		obj.addProperty("App::PropertyLink", "Section", "Section", "Section's wire", 1)
+		obj.addProperty("App::PropertyVector", "planeToX", "CalculatedParam", "", 1).planeToX = VecNul
+		obj.addProperty("App::PropertyVector", "planeToNormal", "CalculatedParam", "", 1).planeToNormal = VecNul
+		obj.addProperty("App::PropertyPlacement", "planePlacement", "CalculatedParam", "", 1)
+		obj.RefPlane = "XY"
+		self.bboxLength = 0.0
+		self.bboxOrigin = 0.0
+		self.external = False
 		obj.Proxy = self
 
 	def execute(self, fp):
 		msgCsl("class " + self.__class__.__name__ + ", execute")
 		
 	def check(self, fp):
-		if hasattr(fp, "SlicedObject"):
+		msgCsl("check method starting")
+		if hasattr(fp, "SlicedObject") and hasattr(fp, "planeToX") and hasattr(fp, "planeToNormal") and hasattr(fp, "planePlacement"):
 			if fp.SlicedObject != None:
+#				if hasattr(fp.SlicedObject, "Shape"):
+#					if hasattr(fp.SlicedObject.Shape, "Volume"):
+#						if fp.SlicedObject.Shape.Volume > 0.001:
 				return True
+#						else:
+#							msgCsl("Shape volume is under 0.001, slice abort")
 		else: return False
 		
 	def onChanged(self, fp, prop):
 		# Do something when a property has changed
 #		msgCsl(self.__class__.__name__ + " class property change: " + str(prop) + "  Type of property :" + str(fp.getTypeIdOfProperty(prop)))
-		if prop in ["SlicedObject", "Offset"]:
+		if prop == "Offset":
 			if self.check(fp):
 				if fp.CutPlane == None: self.createSection(fp)
 				else: self.updateSection(fp)
-	
-	def updatePlane(self, fp, dist):
-		if fp.CutPlane == None:
-			mplane = FreeCAD.ActiveDocument.addObject("Part::Plane","Plane")
-			mplane.ViewObject.ShapeColor = (0.33,0.67,1.00)
-			mplane.ViewObject.LineColor = (1.00,0.67,0.00)
-			mplane.ViewObject.LineWidth = 3.00
-			mplane.ViewObject.Transparency = 50
-		else:
-			mplane = fp.CutPlane
+		if prop == "SlicedObject":
+			if self.check(fp):
+				if fp.CutPlane == None: self.createSection(fp)
+				else:
+					self.external = True
+					self.CalculateParam(fp)
+					self.external = False
+					self.updateSection(fp)
+		if prop == "RefPlane":
+			if self.check(fp):
+				if fp.CutPlane == None:
+					msgCsl("Section plane not created")
+					return
+				self.external = True
+				self.CalculateParam(fp)
+				self.external = False
+				self.updateSection(fp)
+
+	def CalculateParam(self, fp):
+		msgCsl("CalculateParam method starting")
 		bbox = fp.SlicedObject.Shape.BoundBox
 		pos = Vector(bbox.XMin, bbox.YMin, bbox.ZMin)
 		vecX = PtsToVec(pos, Vector(bbox.XMax, bbox.YMin, bbox.ZMin))
 		vecY = PtsToVec(pos, Vector(bbox.XMin, bbox.YMax, bbox.ZMin))
-#		if fp.SlicedObject.TypeId == "Part::Loft":
-#			normVec = PtsToVec(fp.SlicedObject.OutList[0].Shape.CenterOfMass, fp.SlicedObject.OutList[1].Shape.CenterOfMass)
-#			normVec.normalize()
-#		else:
-		normVec = PtsToVec(pos, Vector(bbox.XMin, bbox.YMin, bbox.ZMax))
-		normVec.normalize()
-		mplane.Length = bbox.XLength + 10
-		mplane.Width = bbox.YLength + 10
-		mrot = Rotation(Vector(1, 0, 0), vecX)
-		mplane.Placement = Placement(VecNul, mrot)
-		mrot = Rotation(mplane.Shape.normalAt(0, 0), normVec)
-		mplane.Placement = Placement(pos.add(vecX.multiply(-5 / vecX.Length)).add(vecY.multiply(-5 / vecY.Length)), mrot).multiply(mplane.Placement)
-		if dist != 0: mplane.Placement.move(normVec.multiply(dist))
-		fp.CutPlane = mplane
-		return normVec
+		vecZ = PtsToVec(pos, Vector(bbox.XMin, bbox.YMin, bbox.ZMax))
+		i = 1
+		if fp.RefPlane == "XY":
+			msgCsl("refplane XY checked")
+			self.bboxLength = bbox.ZLength
+			self.bboxOrigin = bbox.ZMin
+			fp.planeToX = vecX
+			fp.planeToNormal = vecZ
+			length = bbox.XLength
+			width = bbox.YLength
+		elif fp.RefPlane == "XZ":
+			msgCsl("refplane XZ checked")
+			self.bboxLength = bbox.YLength
+			self.bboxOrigin = bbox.YMin
+			fp.planeToX = vecX
+			fp.planeToNormal = vecY
+			length = bbox.XLength
+			width = bbox.ZLength
+			i = -1
+		elif fp.RefPlane == "YZ":
+			msgCsl("refplane YZ checked")
+			self.bboxLength = bbox.XLength
+			self.bboxOrigin = bbox.XMin
+			fp.planeToX = vecY
+			fp.planeToNormal = vecX
+			length = bbox.YLength
+			width = bbox.ZLength
+		if length * width == 0: return 0, 0
+		mrot = FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), fp.planeToX)
+		mplacement = FreeCAD.Placement(VecNul, mrot)
+		mrot = FreeCAD.Rotation(FreeCAD.Vector(0, 0, i * 1), fp.planeToNormal)
+		mplacement = FreeCAD.Placement(pos, mrot).multiply(mplacement)
+		fp.planePlacement = mplacement
+		if self.external:
+			mplane = fp.CutPlane
+			mplane.Length = length
+			mplane.Width = width
+			mplane.Placement = fp.planePlacement
+			fp.CutPlane = mplane
+			self.updatePlane(fp, fp.Offset)
+		return length, width
+	
+	def createPlane(self, fp, length, width):
+		msgCsl("createPlane method starting")
+		if fp.CutPlane == None:
+			mplane = FreeCAD.ActiveDocument.addObject("Part::Plane","Plane")
+			mplane.ViewObject.ShapeColor = (0.33,0.67,1.00)
+			mplane.ViewObject.LineColor = (1.00,0.67,0.00)
+			mplane.ViewObject.LineWidth = 1.00
+			mplane.ViewObject.Transparency = 50
+#			bbox = fp.SlicedObject.Shape.BoundBox
+#			pos = Vector(bbox.XMin, bbox.YMin, bbox.ZMin)
+			fp.planeToNormal.normalize()
+			mplane.Length = length
+			mplane.Width = width
+#			mrot = Rotation(Vector(1, 0, 0), fp.planeToX)
+#			mplane.Placement = Placement(VecNul, mrot)
+#			mrot = Rotation(Vector(0, 0, 1), fp.planeToNormal)
+			mplane.Placement = fp.planePlacement #Placement(pos, mrot).multiply(mplane.Placement)
+			dist = fp.Offset
+			if dist != 0:
+				if dist >= self.bboxLength: dist = self.bboxLength
+				mplane.Placement.move(fp.planeToNormal.multiply(dist))
+			fp.CutPlane = mplane
+
+	def updatePlane(self, fp, dist):
+		if hasattr(fp, "planePlacement"):
+			msgCsl("updatePlane method starting")
+			mplane = fp.CutPlane
+			if dist != 0:
+				if dist >= self.bboxLength: dist = self.bboxLength
+				mplane.Placement = fp.planePlacement
+				fp.planeToNormal.normalize()
+	#			msgCsl("Plane normal vector: " + format(fp.planeToNormal) + " plane offset: " + str(dist))
+				mplane.Placement.move(fp.planeToNormal.multiply(dist))
+			fp.CutPlane = mplane
 
 	def createSection(self, fp):
-		normVec = self.updatePlane(fp, fp.Offset)
-		slice = Part.Compound(fp.SlicedObject.Shape.slice(normVec.normalize(), fp.Offset))
+		msgCsl("createSection method starting")
+		length, width = self.CalculateParam(fp)
+		if length * width == 0: return
+		self.createPlane(fp, length, width)
+		slice = Part.Compound(fp.SlicedObject.Shape.slice(fp.planeToNormal.normalize(), self.bboxOrigin + fp.Offset))
 #		msgCsl("normVec: " + format(normVec))
 		pts = []
-		for e in slice.Edges: #range(0, len(slice.Edges), +1):
-			pts.append(e.firstVertex().Point)
-#		for i in range(0, len(slice.Vertexes), +1):
-#			pts.append(slice.Vertexes[i].Point)
-#			msgCsl("points i: " + format(pts[i]))
+		for e in slice.Edges:
+			if e.Orientation == "Reversed":
+				pts.append(e.firstVertex().Point)
+			else:
+				pts.append(e.lastVertex().Point)
 		fp.Section = Draft.makeWire(pts, True, False)
 		fp.Section.Label = "CutWire"
 		del slice		
 	
 	def updateSection(self, fp):
+		msgCsl("updateSection method starting")
+		msgCsl("updateSection method starting")
 		# in case of freecad file is loading, check plane is build
+		self.updatePlane(fp, fp.Offset)
 		if len(fp.CutPlane.Shape.Edges) == 0: return
-		slice = Part.Compound(fp.SlicedObject.Shape.slice(self.updatePlane(fp, fp.Offset).normalize(), fp.Offset))
+		slice = Part.Compound(fp.SlicedObject.Shape.slice(fp.planeToNormal.normalize(), self.bboxOrigin + fp.Offset))
 		pts = []
+#		msgCsl("slice.Edges number: " + str(len(slice.Edges)))
 		for e in slice.Edges:
-			pts.append(e.firstVertex().Point)
+			if e.Orientation == "Reversed":
+				pts.append(e.firstVertex().Point)
+			else:
+				pts.append(e.lastVertex().Point)
 		fp.Section.Points = pts
 		del slice		
 
@@ -1212,5 +1310,7 @@ def createSection():
 	ViewProviderSection(obj.ViewObject, 'Section.svg')
 	if len(sl) > 0:
 		wobj = sl[0].Object
-		if wobj.TypeId == "Part::Loft":
+		if wobj.Shape.Volume > 0.001:
 			obj.SlicedObject = wobj
+		else:
+			msgCsl("Shape volume is under 0.001, slice abort")
