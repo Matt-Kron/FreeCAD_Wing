@@ -299,12 +299,12 @@ class CoordSys:
 			ObjectOk = True
 		elif fp.LinkedObject.TypeId == "PartDesign::Pad":
 			nb = len(fp.LinkedObject.OutList[0].Shape.Edges)
-			mface = fp.LinkedObject.Shape.Faces[nb + 1]
+			mface = fp.LinkedObject.Shape.Faces[nb]
 #			ObjectEdges = fp.LinkedObject.OutList[0].Shape.Edges
 #			ObjectCenterOfMass = fp.LinkedObject.OutList[0].Shape.CenterOfMass
 			ObjectEdges = mface.Edges
 			ObjectCenterOfMass = mface.CenterOfMass
-			ObjectOrigin = fp.LinkedObject.OutList[0].Placement.Base
+			ObjectOrigin = fp.LinkedObject.OutList[0].AttachmentOffset.Base
 			ObjectOk = True
 		elif fp.LinkedObject.TypeId == "Part::Cylinder":
 			ObjectEdges = fp.LinkedObject.Shape.Face3.Edges
@@ -323,26 +323,29 @@ class CoordSys:
 			if fp.LinkedObject != None and hasattr(fp.LinkedObject.Shape, "Face1"):
 				ObjectOk, ObjectEdges, ObjectCenterOfMass, ObjectOrigin = self.updateRefFace(fp)
 				if ObjectOk:
-					index = int(fp.VertexNum % len(ObjectEdges))
+					index = int(fp.VertexNum % len(ObjectEdges))  # % len(ObjectEdges) to avoid error if VertexNum is set to high
 					if fp.LinkedObject.TypeId == "PartDesign::Pad":
 						fp.LinkedObject.OutList[0].AttachmentOffset = fp.Tangent.Placement
 					else:
 						fp.LinkedObject.Placement = fp.Tangent.Placement
+					FreeCAD.ActiveDocument.recompute()
 					ObjectOk, ObjectEdges, ObjectCenterOfMass, ObjectOrigin = self.updateRefFace(fp)
 					Fract = int((round((round(fp.VertexNum,2) - int(fp.VertexNum)), 2) * 100 + 100)) % 100
-	#				msgCsl("Fract "+ str(Fract))
+					msgCsl("ObjectOrigin : "+ format(ObjectOrigin))
 					mEdge = ObjectEdges[index]
 					longueur = mEdge.LastParameter - mEdge.FirstParameter
 					if mEdge.Orientation == "Reversed": Fract = 100 - Fract #;msgCsl("reverse fract")
 					Pt = mEdge.Curve.value(longueur * (100 - Fract) / 100) #mEdge.discretize(101)
+					msgCsl("Pt: " + format(Pt))
 					if fp.CenterType == "MassCenter":
 						NewOrigin = ObjectCenterOfMass
 						mBend = PtsToVec(NewOrigin,Pt)
 					else:
 						NewOrigin = Pt
 						mBend = PtsToVec(NewOrigin, ObjectCenterOfMass)
-	#				msgCsl("NewOrigin " + format(NewOrigin))
+					msgCsl("NewOrigin " + format(NewOrigin))
 					mTrans = PtsToVec(NewOrigin,ObjectOrigin)
+					msgCsl("mTrans " + format(mTrans))
 					if fp.CenterType == "Vertexes" and fp.Direction == "Edge":
 						vectan = mEdge.Curve.tangent(longueur * (100 - Fract) / 100)[0] #PtsToVec(self.ObjectEdges[int(fp.VertexNum)].Start, self.ObjectEdges[int(fp.VertexNum)].End)
 						if mEdge.Orientation == "Forward": vectan.multiply(-1)
@@ -492,6 +495,7 @@ class Rod:
 		if not self.check(fp)["All"]:
 			VecDirRod = VecRootNormal.multiply(-1)
 			self.VecDirRod = setVec(VecDirRod)
+			self.VecTipTangent = setVec(VecNul)
 		else:
 			self.calcVecDirRod(fp)
 
@@ -581,9 +585,9 @@ class Rod:
 			VecBisector = VecRootTangent.add(VecTipTangent).normalize()  # Vector mean of root and tip tangents
 #				msgCsl("VecBisector "+ format(VecBisector))
 			VecBisector.projectToPlane(VecNul,VecDirRod)  # projection in the normal plan of rod axis
-#				msgCsl("VecBisector "+ format(VecBisector))
-#				msgCsl("VecRootTangent "+ format(VecRootTangent))
-#				msgCsl("VecTipTangent "+ format(VecTipTangent))
+#			msgCsl("VecBisector "+ format(VecBisector))
+#			msgCsl("VecRootTangent "+ format(VecRootTangent))
+#			msgCsl("VecTipTangent "+ format(VecTipTangent))
 			mRot = FreeCAD.Rotation(fp.CoordSystem.Tangent.End.sub(fp.CoordSystem.Tangent.Start), VecBisector)
 #				msgCsl("Rotation "+ format(mRot))
 			mPlacement = FreeCAD.Placement(VecNul, mRot, VecRoot)

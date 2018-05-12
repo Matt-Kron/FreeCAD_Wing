@@ -91,11 +91,12 @@ def tangentVec(wire, index, mtype):
 		i = 1
 		j = 1
 #	msgCsl("i: " + str(i) + "j: " + str(j) + "type: " + mtype)
-	if len(wire.Points) >= 3:
-		vectan = PtsToVec(wire.Shape.Vertexes[index - i].Point, wire.Shape.Vertexes[index + j].Point)
+	nbpts = len(wire.Points)
+	if nbpts >= 3:
+		vectan = PtsToVec(wire.Shape.Vertexes[(index - i) % nbpts].Point, wire.Shape.Vertexes[(index + j) % nbpts].Point)
 		vectan.normalize()
-	elif len(wire.Points) == 2:
-		vectan = PtsToVec(wire.Shape.Vertexes[index].Point, wire.Shape.Vertexes[index - 1].Point)
+	elif nbpts == 2:
+		vectan = PtsToVec(wire.Shape.Vertexes[index % nbpts].Point, wire.Shape.Vertexes[(index - 1) % nbpts].Point)
 		vectan.normalize()
 	else:
 		vectan = VecNul
