@@ -4,6 +4,7 @@ import WingDial, SectionsDial
 import FreeCADGui, FreeCAD
 from PySide import QtCore, QtGui
 from WingLib import *
+from Wing import Section, ViewProviderSection
 
 try:
     _fromUtf8 = QtCore.QString.fromUtf8
@@ -137,12 +138,14 @@ class WingDialog():
 			FreeCAD.ActiveDocument.recompute()
 
 	def SectionSlider(self, value):
+		if self.internal: return
 		if hasattr(self, "SectionObj"):
 			newvalue = float(value) + float(self.widget.ui.Section_dial.value()) / 100.0
 			self.SectionObj.Proxy.updatePlane(self.SectionObj, newvalue) # * self.maxValue / 100)
 			self.widget.ui.Section_doubleSpinBox.setValue(newvalue) # * self.maxValue / 100)
 
 	def SectionDial(self, value):
+		if self.internal: return
 		if hasattr(self, "SectionObj"):
 			newvalue = float(self.widget.ui.Section_horizontalSlider.value()) + float(value) / 100.0
 #			msgCsl("Section dial newvalue: " + str(newvalue))
@@ -152,9 +155,11 @@ class WingDialog():
 	def SectionDbleSpin(self, value):
 		if hasattr(self, "SectionObj"):
 			self.SectionObj.Proxy.updatePlane(self.SectionObj, value)
+			self.internal = True
 			self.widget.ui.Section_horizontalSlider.setValue(value)
 			fract = int((round(value,2) - int(value))*100)
 			self.widget.ui.Section_dial.setValue(fract)
+			self.internal = False
 			
 	def SectionReset(self):
 		if hasattr(self, "SectionObj"):
@@ -181,6 +186,7 @@ class WingDialog():
 				self.CutWire_doubleSpinBox()
 
 	def CutWireUpdatePoints(self):
+		'''update the position of the cutting points in the FreeCAD view'''
 		value = self.widget.ui.CutWire_doubleSpinBox_start.value()
 		setPointCoord(self.CutWireObj.StartPointObj, DiscretizedPoint(self.CutWireObj.Wire, value))
 		value = self.widget.ui.CutWire_doubleSpinBox_end.value()
@@ -200,11 +206,13 @@ class WingDialog():
 			self.updateDbleSpin(self.widget.ui.CutWire_doubleSpinBox_end, self.widget.ui.CutWire_horizontalSlider_end, self.widget.ui.CutWire_dial_end)
 
 	def CutWireSliderDialStart(self):
+		if self.internal: return
 		if hasattr(self, "CutWireObj"):
 			self.updateDbleSpin(self.widget.ui.CutWire_doubleSpinBox_start, self.widget.ui.CutWire_horizontalSlider_start, self.widget.ui.CutWire_dial_start)
 			self.CutWireDbleSpinBoxStart()
 
 	def CutWireSliderDialEnd(self):
+		if self.internal: return
 		if hasattr(self, "CutWireObj"):
 			self.updateDbleSpin(self.widget.ui.CutWire_doubleSpinBox_end, self.widget.ui.CutWire_horizontalSlider_end, self.widget.ui.CutWire_dial_end)
 			self.CutWireDbleSpinBoxEnd()
@@ -215,6 +223,7 @@ class WingDialog():
 			endvalue = self.widget.ui.CutWire_doubleSpinBox_end.value()
 			max = self.widget.ui.CutWire_doubleSpinBox_end.maximum()
 			gap = self.widget.ui.CutWire_doubleSpinBox_gap.value()
+			self.internal = True
 			if self.widget.ui.CutWire_CheckBox_gap.isChecked():
 				if (startvalue + gap) > max:
 					return
@@ -225,12 +234,14 @@ class WingDialog():
 					self.widget.ui.CutWire_doubleSpinBox_end.setValue(min(startvalue + 1, self.widget.ui.CutWire_doubleSpinBox_end.maximum()))
 				self.widget.ui.CutWire_doubleSpinBox_gap.setValue(self.widget.ui.CutWire_doubleSpinBox_end.value() - startvalue)
 			self.CutWireSpinBox2()
+			self.internal = False
 
 	def CutWireDbleSpinBoxEnd(self):
 		if hasattr(self, "CutWireObj"):
 			startvalue = self.widget.ui.CutWire_doubleSpinBox_start.value()
 			endvalue = self.widget.ui.CutWire_doubleSpinBox_end.value()
 			gap = self.widget.ui.CutWire_doubleSpinBox_gap.value()
+			self.internal = True
 			if self.widget.ui.CutWire_CheckBox_gap.isChecked():
 				if (endvalue - gap) < 0:
 					return
@@ -241,6 +252,7 @@ class WingDialog():
 					self.widget.ui.CutWire_doubleSpinBox_start.setValue(max(endvalue - 1, 0))
 				self.widget.ui.CutWire_doubleSpinBox_gap.setValue(endvalue - self.widget.ui.CutWire_doubleSpinBox_start.value())
 			self.CutWireSpinBox2()
+			self.internal = False
 
 	def CutWireSpinBox2(self):
 		if hasattr(self, "CutWireObj"):
@@ -284,6 +296,7 @@ class CommandWingDialog:
 class SectionsDialog():
 	
 	def __init__(self):
+		self.internal = False		
 		self.bboxOrigin = VecNul
 		self.bboxAxisZ = VecNul
 		self.bboxAxisY = VecNul
@@ -354,7 +367,9 @@ class SectionsDialog():
 			self.widget.ui.SectionsDial_doubleSpinBox_Distance.setValue(0.01)
 			self.widget.ui.SectionsDial_spinBox_Number.setValue(1)
 			self.widget.ui.SectionsDial_doubleSpinBox_StartOffset.setValue(0)
-			self.SectionsDial_button_OK()
+			self.removePlanes()
+			self.widget.hide()
+#			self.SectionsDial_button_OK()
 
 	def SectionsDial_button_select_object(self):
 		sl = FreeCADGui.Selection.getSelectionEx()
@@ -374,7 +389,7 @@ class SectionsDialog():
 					self.bboxZlength = bbox.ZLength
 					self.calculateParam()
 				else:
-					msgCsl("The shape is not a volume")
+					usrMsg("The shape is not a volume")
 
 	def calculateParam(self):
 		self.removePlanes()
@@ -419,9 +434,6 @@ class SectionsDialog():
 		else:
 			return self.widget.ui.SectionsDial_doubleSpinBox_Distance.value()
 
-#	def maxDistance(self):
-#		self.maxDist = self.bboxLength - self.widget.ui.SectionsDial_doubleSpinBox_StartOffset.value()
-
 	def calculateNumber(self):
 		number = int((self.bboxLength - self.widget.ui.SectionsDial_doubleSpinBox_StartOffset.value())
 						/ self.widget.ui.SectionsDial_doubleSpinBox_Distance.value()) + 1
@@ -449,7 +461,7 @@ class SectionsDialog():
 		for mplane in self.PlanesList:
 			mplane.Placement = self.placement
 			self.planeToNormal.normalize()
-			msgCsl("self.planeToNormal: " + format(self.planeToNormal))
+#			msgCsl("self.planeToNormal: " + format(self.planeToNormal))
 			translation = self.widget.ui.SectionsDial_doubleSpinBox_StartOffset.value() + i * distance
 			if translation > 0: mplane.Placement.move(self.planeToNormal.multiply(translation))
 			i += 1
@@ -463,10 +475,28 @@ class SectionsDialog():
 			nbplane = len(self.PlanesList)
 
 	def SectionsDial_button_OK(self):
+		if self.widget.ui.SectionsDial_radioButton_XY.isChecked():
+			refplane = "XY"
+		elif self.widget.ui.SectionsDial_radioButton_XZ.isChecked():
+			refplane = "XZ"
+		elif self.widget.ui.SectionsDial_radioButton_YZ.isChecked():
+			refplane = "YZ"
+		distance = self.widget.ui.SectionsDial_doubleSpinBox_Distance.value()
+		offset = self.widget.ui.SectionsDial_doubleSpinBox_StartOffset.value()
+		for i in range(0, len(self.PlanesList), +1):
+			obj = FreeCAD.ActiveDocument.addObject("App::FeaturePython","Section")
+			Section(obj)  # imported from Wing
+			ViewProviderSection(obj.ViewObject, 'Section.svg')  # imported from Wing
+			obj.RefPlane = refplane
+			obj.Offset = offset + i * distance
+			obj.SlicedObject = self.obj
 		self.removePlanes()
 		self.widget.hide()
+		FreeCAD.ActiveDocument.recompute()
 
 	def SectionsDial_spinBox_Number(self, value):
+		if self.internal: return
+		self.internal = True
 		distance = self.calculateDistance()
 		if self.widget.ui.SectionsDial_checkBox_Number.isChecked() and self.widget.ui.SectionsDial_checkBox_Distance.isChecked():
 			self.widget.ui.SectionsDial_doubleSpinBox_Distance.setValue(distance)
@@ -479,8 +509,10 @@ class SectionsDialog():
 		else:
 			return
 		self.PlanesUpate()
+		self.internal = False
 
 	def SectionsDial_doubleSpinBox_StartOffset(self, value):
+		if self.internal: return
 		distance = self.widget.ui.SectionsDial_doubleSpinBox_Distance.value()
 		number = self.widget.ui.SectionsDial_spinBox_Number.value()
 		if self.widget.ui.SectionsDial_checkBox_Number.isChecked() and self.widget.ui.SectionsDial_checkBox_Distance.isChecked():
@@ -490,13 +522,17 @@ class SectionsDialog():
 		elif self.widget.ui.SectionsDial_checkBox_Number.isChecked() and (not self.widget.ui.SectionsDial_checkBox_Distance.isChecked()):
 			self.SectionsDial_doubleSpinBox_Distance(distance)
 		else:
-			distance = self.widget.ui.SectionsDial_doubleSpinBox_Distance.value()
-			number = self.widget.ui.SectionsDial_spinBox_Number.value()
+#			distance = self.widget.ui.SectionsDial_doubleSpinBox_Distance.value()
+#			number = self.widget.ui.SectionsDial_spinBox_Number.value()
 			if (value + (number - 1) * distance) > self.bboxLength:
+#				self.internal = True
 				self.widget.ui.SectionsDial_doubleSpinBox_StartOffset.setValue(self.bboxLength - (number - 1) * distance)
+#				self.internal = False
 			self.PlanesUpate()
 
 	def SectionsDial_doubleSpinBox_Distance(self, value):
+		if self.internal: return
+		self.internal = True
 		number = self.calculateNumber()
 		if self.widget.ui.SectionsDial_checkBox_Number.isChecked() and self.widget.ui.SectionsDial_checkBox_Distance.isChecked():
 			self.widget.ui.SectionsDial_spinBox_Number.setValue(number)
@@ -508,6 +544,7 @@ class SectionsDialog():
 		else:
 			return
 		self.PlanesUpate()
+		self.internal = False
 
 
 class CommandSectionsDialog:

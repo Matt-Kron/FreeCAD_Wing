@@ -304,6 +304,7 @@ def setVec(Vector):
 	return [Vector.x, Vector.y, Vector.z]
 
 def setPointCoord(pointobj, vector):
+	''' set Draft Point coordinates to the vector values '''
 	pointobj.X = vector.x
 	pointobj.Y = vector.y
 	pointobj.Z = vector.z
