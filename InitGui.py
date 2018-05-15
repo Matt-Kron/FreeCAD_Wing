@@ -87,6 +87,7 @@ if FreeCAD.GuiUp:
 	FreeCADGui.addCommand('Wing_Section', _CommandWing("Section", "Section.svg", "Wing.createSection()", "Wing"))
 	FreeCADGui.addCommand("WingDialog", WingDialogs.CommandWingDialog())
 	FreeCADGui.addCommand("SectionsDialog", WingDialogs.CommandSectionsDialog())
+	FreeCADGui.addCommand("RecomputeSelection", Wing.CommandRecompute())
 
 class WingWorkbench(Workbench):
 	'''Wing workbench object'''
@@ -99,9 +100,9 @@ class WingWorkbench(Workbench):
 	def Initialize(self):
 		"This function is executed when FreeCAD starts"
 		self.appendToolbar("Wing", ["Wing_ImportProfil", "Wing_Wing", "Wing_CoordSys", "Wing_Rod",
-							"Wing_WrapLeadingEdge", 'Wing_LeadingEdge', "Wing_CutWire", "Wing_Section", 'WingDialog', "SectionsDialog"])
+							"Wing_WrapLeadingEdge", 'Wing_LeadingEdge', "Wing_CutWire", "Wing_Section", 'WingDialog', "SectionsDialog", "RecomputeSelection"])
 		self.appendMenu("Wing", ["Wing_ImportProfil", "Wing_Wing", "Wing_CoordSys", "Wing_Rod",
-							"Wing_WrapLeadingEdge", 'Wing_LeadingEdge', "Wing_CutWire", "Wing_Section", 'WingDialog', "SectionsDialog"])
+							"Wing_WrapLeadingEdge", 'Wing_LeadingEdge', "Wing_CutWire", "Wing_Section", 'WingDialog', "SectionsDialog", "RecomputeSelection"])
 		Log ("Loading Wing module done")
 
 	def Activated(self):

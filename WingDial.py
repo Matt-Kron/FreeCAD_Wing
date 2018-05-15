@@ -37,6 +37,7 @@ class Ui_DockWidget(object):
         self.verticalLayout.setObjectName(_fromUtf8("verticalLayout"))
         self.tabWidget = QtGui.QTabWidget(self.dockWidgetContents)
         self.tabWidget.setTabPosition(QtGui.QTabWidget.West)
+        self.tabWidget.setIconSize(QtCore.QSize(32, 16))
         self.tabWidget.setObjectName(_fromUtf8("tabWidget"))
         self.Section_tab = QtGui.QWidget()
         self.Section_tab.setObjectName(_fromUtf8("Section_tab"))
@@ -233,7 +234,7 @@ class Ui_DockWidget(object):
         self.gridLayout_6.addItem(spacerItem9, 0, 2, 1, 1)
         self.gridLayout_10.addLayout(self.gridLayout_6, 0, 0, 1, 1)
         icon2 = QtGui.QIcon()
-        icon2.addPixmap(QtGui.QPixmap(_fromUtf8("icons:CutWire-icon.svg")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        icon2.addPixmap(QtGui.QPixmap(_fromUtf8("icons:CutWireDial-icon.svg")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         self.tabWidget.addTab(self.CutWire_tab, icon2, _fromUtf8(""))
         self.verticalLayout.addWidget(self.tabWidget)
         self.horizontalLayout_2 = QtGui.QHBoxLayout()
@@ -248,7 +249,7 @@ class Ui_DockWidget(object):
         DockWidget.setWidget(self.dockWidgetContents)
 
         self.retranslateUi(DockWidget)
-        self.tabWidget.setCurrentIndex(0)
+        self.tabWidget.setCurrentIndex(1)
         QtCore.QMetaObject.connectSlotsByName(DockWidget)
 
     def retranslateUi(self, DockWidget):

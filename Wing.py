@@ -144,6 +144,9 @@ class Profile:
 			fp.Wire.Points = pts
 			#FreeCADGui.SendMsgToActiveView("ViewFit")
 
+	def recompute(self, fp):
+		self.onChanged(fp, "Scale")
+
 class ViewProviderProfile(ViewProviderGeneric):
 
 	def getIcon(self):
@@ -235,6 +238,12 @@ class Wing:
 			place = fp.RootProfile.Placement.multiply(place)
 #			msgCsl(format(place))
 			fp.TipProfile.Placement = place
+
+	def recompute(self, fp):
+		self.onChanged(fp, "RootProfile")
+#		msgCsl("Recompute wing")
+#		if self.check(fp): self.updatePosition(fp)
+
 
 class ViewProviderWing(ViewProviderGeneric):
 
@@ -363,6 +372,10 @@ class CoordSys:
 						fp.LinkedObject.Placement = fp.LocalPlacement.multiply(fp.LinkedObject.Placement)
 	#				msgCsl("LocalPlacement: " + format(fp.LocalPlacement))
 
+	def recompute(self, fp):
+		self.onChanged(fp, "LinkedObject")
+
+
 class ViewProviderCoordSys(ViewProviderGeneric):
 
 	def getIcon(self):
@@ -424,7 +437,6 @@ class Rod:
 			if prop in ["RootPoint", "TipPoint", "RootOffset", "TipOffset", "RootInwardOffset",
 						"TipInwardOffset", "AutoRotate", "TangentType", "AngleOffset"]:
 #				msgCsl("Rod class property change: " + str(prop) + "  Type of property :" + str(fp.getTypeIdOfProperty(prop)))
-#				self.calcVecRoot(fp)
 				if self.check(fp)["Root"]: self.updatePosition(fp)
 			if fp.getTypeIdOfProperty(prop) == 'App::PropertyLink':
 				obj = fp.getPropertyByName(prop)
@@ -433,33 +445,7 @@ class Rod:
 						self.ObjNameList[prop] = obj.Name
 						if prop in ["RootWire", "TipWire", "CoordSystem"]:
 #							msgCsl("Rod class property change: " + str(prop) + "  Type of property :" + str(fp.getTypeIdOfProperty(prop)))
-#								self.calcVecRoot(fp)
 							if self.check(fp)["Root"]: self.updatePosition(fp)
-
-#	def __getstate__(self):
-#		state = {}
-#		state["VecRoot"] = list(self.VecRoot)
-#		state["VecRootTangent"] = list(self.VecRootTangent)
-#		state["VecRootCurvature"] = list(self.VecRootCurvature)
-#		state["VecTip"] = list(self.VecTip)
-#		state["VecTipTangent"] = list(self.VecTipTangent)
-#		state["VecTipCurvature"] = list(self.VecTipCurvature)
-#		state["VecDirRod"] = list(self.VecDirRod)
-##		state["VecRodEdge"] = list(self.VecRodEdge)
-#		state["VecRodCenter"] = list(self.VecRodCenter)
-#		return state
-#
-#	def __setstate__(self, state):
-#		self.VecRoot = Vector(tuple( i for i in state["VecRoot"]))
-#		self.VecRootTangent = Vector(tuple( i for i in state["VecRootTangent"]))
-#		self.VecRootCurvature = Vector(tuple( i for i in state["VecRootCurvature"]))
-#		self.VecTip = Vector(tuple( i for i in state["VecTip"]))
-#		self.VecTipTangent = Vector(tuple( i for i in state["VecTipTangent"]))
-#		self.VecTipCurvature = Vector(tuple( i for i in state["VecTipCurvature"]))
-#		self.VecDirRod = Vector(tuple( i for i in state["VecDirRod"]))
-##		self.VecRodEdge = Vector(tuple( i for i in state["VecRodEdge"]))
-#		self.VecRodCenter = Vector(tuple( i for i in state["VecRodCenter"]))
-#		self.ObjNameList = {"RootWire":"", "TipWire":"", "CoordSystem":""}
 
 	def execute(self, fp):
 		msgCsl("class " + self.__class__.__name__ + ", execute")
@@ -532,9 +518,7 @@ class Rod:
 #		msgCsl("VecDirRod "+ format(self.VecDirRod))
 
 	def calcVecRod(self, fp):
-#		if self.testWires(fp):
-			self.VecRodCenter = setVec(fp.CoordSystem.Tangent.Start)
-#			self.VecRodEdge = PtsToVec(fp.CoordSystem.Tangent.Start,fp.CoordSystem.Tangent.End)
+		self.VecRodCenter = setVec(fp.CoordSystem.Tangent.Start)
 
 	def updateRootPosition(self, fp):
 		mDir = getVec(self.VecDirRod)
@@ -596,6 +580,9 @@ class Rod:
 			self.updateAxis(fp.CoordSystem, mPlacement.multiply(fp.CoordSystem.Tangent.Placement))
 		self.updateRootPosition(fp)
 
+	def recompute(self, fp):
+		self.onChanged(fp, "RootPoint")
+
 
 class ViewProviderRod(ViewProviderGeneric):
 
@@ -614,6 +601,8 @@ class WrapLeadingEdge:
 		obj.addProperty("App::PropertyLink", "Wrap", "LinkedObject", "Wrapped wire", 1)
 		obj.addProperty("App::PropertyLink", "CutWire", "LinkedObject", "Cut wire after having cut the wrap", 1)
 		obj.addProperty("App::PropertyBool", "Inward", "Settings", "Draw the wrap inward or backward").Inward = True
+		obj.addProperty("App::PropertyLink","StartPointObj","LinkedObject","", -1)
+		obj.addProperty("App::PropertyLink","EndPointObj","LinkedObject","", -1)
 #		obj.addProperty("App::PropertyBool", "DeleteLoop", "Settings", "Delete loop of wrap and cut wires").DeleteLoop = False
 		self.WireLinked = False
 		obj.Proxy = self
@@ -687,15 +676,25 @@ class WrapLeadingEdge:
 			pts = self.calculateWrapPoints(fp, wire, start, end)
 			wrapobj = Draft.makeWire(pts, True, False)
 			wrapobj.Label = "Wrap"
-#			if fp.DeleteLoop: DeleteLoop(wrapobj)
 			fp.Wrap = wrapobj
 			if fp.Inward:
 				msgCsl("create cut wire")
 				pts2 = self.calculateCutWirePoints(wire, wrapobj, start, end)
 				cutobj = Draft.makeWire(pts2, True, False)
 				cutobj.Label = "CutWire"
-#				if fp.DeleteLoop: DeleteLoop(cutobj)
 				fp.CutWire = cutobj
+			if fp.StartPointObj == None:
+#				msgCsl("createCutWires before start makePoint")
+				fp.StartPointObj = Draft.makePoint(DiscretizedPoint(fp.Wire, fp.StartPoint))
+#				msgCsl("createCutWires after start makePoint")
+				fp.StartPointObj.Label = "StartPoint"
+				fp.StartPointObj.ViewObject.PointColor = (1.00,0.67,0.00, 0.0)
+				fp.StartPointObj.ViewObject.PointSize = 7.0
+			if fp.EndPointObj == None:
+				fp.EndPointObj = Draft.makePoint(DiscretizedPoint(fp.Wire, fp.EndPoint))
+				fp.EndPointObj.Label = "EndPoint"
+				fp.EndPointObj.ViewObject.PointColor = (1.00,0.67,0.00, 0.0)
+				fp.EndPointObj.ViewObject.PointSize = 7.0
 	
 	def updateWrap(self, fp, wire, start, end):
 		if wire != None and fp.Wrap != None and int(end) > int(start):
@@ -713,6 +712,8 @@ class WrapLeadingEdge:
 					wrappts.append(pts[i])   # pts[i] does not matter, it's just to increase the wire points number
 			fp.Wrap.Points = pts
 #			if fp.DeleteLoop: DeleteLoop(fp.Wrap)
+			setPointCoord(fp.StartPointObj, DiscretizedPoint(fp.Wire, fp.StartPoint))
+			setPointCoord(fp.EndPointObj, DiscretizedPoint(fp.Wire, fp.EndPoint))
 
 	def updateCutWire(self, wire, wrap, cutwire, start, end):
 		if wire != None and wrap != None and int(end) > int(start):
@@ -730,8 +731,8 @@ class WrapLeadingEdge:
 					wrappts.append(pts[i])   # pts[i] does not matter, it's just to increase the wire points number
 			cutwire.Points = pts
 
-#	def __setstate__(self, state):
-#		self.WireLinked = False
+	def recompute(self, fp):
+		self.onChanged(fp, "Wire")
 		
 		
 class ViewProviderWrapLeadingEdge(ViewProviderGeneric):
@@ -800,7 +801,7 @@ class LeadingEdge:
 			mplane = FreeCAD.ActiveDocument.addObject("Part::Plane","Plane")
 			mplane.ViewObject.ShapeColor = (0.33,0.67,1.00)
 			mplane.ViewObject.LineColor = (1.00,0.67,0.00)
-			mplane.ViewObject.LineWidth = 3.00
+			mplane.ViewObject.LineWidth = 1.00
 			mplane.ViewObject.Transparency = 50
 		else:
 			mplane = fp.Plane
@@ -870,7 +871,11 @@ class LeadingEdge:
 		if fp.CutType == "Right": # and self.Initialized["Left"]:  # delete Left wires
 			if fp.LeftCutRoot != None: FreeCAD.ActiveDocument.removeObject(fp.LeftCutRoot.Name)
 			if fp.LeftCutTip != None: FreeCAD.ActiveDocument.removeObject(fp.LeftCutTip.Name)
-			self.Initialized["Left"] = False			
+			self.Initialized["Left"] = False
+	
+	def recompute(self, fp):
+		self.onChanged(fp, "RootWire")
+	
 
 class ViewProviderLeadingEdge(ViewProviderGeneric):
 	
@@ -983,6 +988,10 @@ class CutWire:
 			if fp.LeftCut != None:
 				FreeCAD.ActiveDocument.removeObject(fp.LeftCut.Name)
 				self.Initialized["Left"] = False			
+
+	def recompute(self, fp):
+		self.onChanged(fp, "Wire")
+
 
 class ViewProviderCutWire(ViewProviderGeneric):
 	
@@ -1159,7 +1168,6 @@ class Section:
 	
 	def updateSection(self, fp):
 		msgCsl("updateSection method starting")
-		msgCsl("updateSection method starting")
 		# in case of freecad file is loading, check plane is build
 		self.updatePlane(fp, fp.Offset)
 		if len(fp.CutPlane.Shape.Edges) == 0: return
@@ -1173,6 +1181,9 @@ class Section:
 				pts.append(e.lastVertex().Point)
 		fp.Section.Points = pts
 		del slice		
+
+	def recompute(self, fp):
+		self.onChanged(fp, "SlicedObject")
 
 
 class ViewProviderSection(ViewProviderGeneric):
@@ -1318,3 +1329,32 @@ def createSection():
 			obj.SlicedObject = wobj
 		else:
 			msgCsl("Shape volume is under 0.001, slice abort")
+
+def recomputeSelection():
+	'''Recompute wing objects in the order of the selection'''
+	sl = FreeCADGui.Selection.getSelectionEx()
+	if len(sl) > 0:
+		for s in sl:
+			obj = s.Object
+			if hasattr(obj, "Proxy"):
+				if obj.Proxy.__class__.__name__ in ["Profile", "Wing", "CoordSys", "CutWire", "LeadingEdge", "Rod", "Section", "WrapLeadingEdge"]:
+					obj.Proxy.recompute(obj)
+#					msgCsl("Recompute " + obj.Name + " " + obj.Proxy.__class__.__name__)
+					FreeCAD.ActiveDocument.recompute()
+
+class CommandRecompute:
+	"""Recompute wing objects in the order of the selection"""
+	
+	def GetResources(self):
+		icon = os.path.join( iconPath , 'RecomputeSelection.svg')
+		return {'Pixmap'  : icon , # the name of a svg file available in the resources
+			'MenuText': "Recompute selection" ,
+			'ToolTip' : """Recompute wing objects in the order of the selection.
+						   It could take time."""}
+
+	def Activated(self):
+		recomputeSelection()
+		return
+
+	def IsActive(self):
+		return True

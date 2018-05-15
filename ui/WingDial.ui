@@ -27,7 +27,13 @@
          <enum>QTabWidget::West</enum>
         </property>
         <property name="currentIndex">
-         <number>0</number>
+         <number>1</number>
+        </property>
+        <property name="iconSize">
+         <size>
+          <width>32</width>
+          <height>16</height>
+         </size>
         </property>
         <widget class="QWidget" name="Section_tab">
          <attribute name="icon">
@@ -274,7 +280,7 @@
         <widget class="QWidget" name="CutWire_tab">
          <attribute name="icon">
           <iconset>
-           <normaloff>../Icons/CutWire-icon.svg</normaloff>../Icons/CutWire-icon.svg</iconset>
+           <normaloff>../Icons/CutWireDial-icon.svg</normaloff>../Icons/CutWireDial-icon.svg</iconset>
          </attribute>
          <attribute name="title">
           <string>Cut wire</string>

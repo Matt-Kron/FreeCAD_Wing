@@ -170,20 +170,23 @@ class WingDialog():
 		sl = FreeCADGui.Selection.getSelectionEx()
 		if len(sl) > 0:
 			wobj = sl[0].Object
-			if wobj.Proxy.__class__.__name__ == "CutWire":
-				msgCsl("CutWire object found")
-				self.CutWireObj = wobj
-				self.widget.ui.CutWire_info_selected_object.setText(wobj.Label + "(" + wobj.Name + ")")
-				max = len(wobj.Wire.Points)
-				self.widget.ui.CutWire_doubleSpinBox_start.setMaximum(max)
-				self.widget.ui.CutWire_horizontalSlider_start.setMaximum(int(max))
-				self.widget.ui.CutWire_doubleSpinBox_end.setMaximum(max)
-				self.widget.ui.CutWire_horizontalSlider_end.setMaximum(int(max))
-				self.widget.ui.CutWire_doubleSpinBox_start.setValue(wobj.StartPoint)
-				self.widget.ui.CutWire_doubleSpinBox_end.setValue(wobj.EndPoint)
-				self.widget.ui.CutWire_doubleSpinBox_gap.setValue(max(wobj.EndPoint - wobj.StartPoint, 0.0))
-				self.widget.ui.CutWire_comboBox.setCurrentIndex(self.widget.ui.CutWire_comboBox.findText(wobj.CutType))
-				self.CutWire_doubleSpinBox()
+			if hasattr(wobj, "Proxy"):
+				if wobj.Proxy.__class__.__name__ in ["CutWire", "WrapLeadingEdge"]:
+					msgCsl("CutWire object found")
+					self.CutWireObj = wobj
+					self.widget.ui.CutWire_info_selected_object.setText(wobj.Label + "(" + wobj.Name + ")")
+					max = len(wobj.Wire.Points)
+					self.widget.ui.CutWire_doubleSpinBox_start.setMaximum(max)
+					self.widget.ui.CutWire_horizontalSlider_start.setMaximum(int(max))
+					self.widget.ui.CutWire_doubleSpinBox_end.setMaximum(max)
+					self.widget.ui.CutWire_horizontalSlider_end.setMaximum(int(max))
+					self.widget.ui.CutWire_doubleSpinBox_start.setValue(wobj.StartPoint)
+					self.widget.ui.CutWire_doubleSpinBox_end.setValue(wobj.EndPoint)
+					self.widget.ui.CutWire_doubleSpinBox_gap.setValue(max(wobj.EndPoint - wobj.StartPoint, 0.0))
+					self.widget.ui.CutWire_comboBox.setCurrentIndex(self.widget.ui.CutWire_comboBox.findText(wobj.CutType))
+					self.CutWire_doubleSpinBox()
+				else:
+					usrMsg("No wing wire object selected")
 
 	def CutWireUpdatePoints(self):
 		'''update the position of the cutting points in the FreeCAD view'''
@@ -197,7 +200,8 @@ class WingDialog():
 		if hasattr(self, "CutWireObj"):
 			self.CutWireObj.StartPoint = self.widget.ui.CutWire_doubleSpinBox_start.value()
 			self.CutWireObj.EndPoint = self.widget.ui.CutWire_doubleSpinBox_end.value()
-			self.CutWireObj.CutType = self.widget.ui.CutWire_comboBox.currentText()
+			if hasattr(self.CutWireObj, "CutType"):
+				self.CutWireObj.CutType = self.widget.ui.CutWire_comboBox.currentText()
 			FreeCAD.ActiveDocument.recompute()
 
 	def CutWireUpdateDbleSpin(self):
