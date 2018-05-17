@@ -784,7 +784,8 @@ class LeadingEdge:
 		if self.check(fp) and prop in ["RootWire", "RootStartPoint", "RootEndPoint", "TipWire", "TipStartPoint", "CutType"]:
 			create = False
 			for mkey, mvalue in self.Initialized.items():
-				if not mvalue and (fp.CutType == "Both" or mkey == fp.CutType): create = True
+					if (mkey == fp.CutType) or (fp.CutType == "Both"):
+						if not mvalue: create = True
 			if create: self.createCutWires(fp)
 			else: self.updateCutWires(fp)
 			self.deleteWires(fp)
@@ -834,17 +835,21 @@ class LeadingEdge:
 				type = fp.CutType
 				leftpts, rightpts = cutWire(fp.RootWire, fp.RootStartPoint, fp.RootEndPoint, type)
 				leftpts2, rightpts2 = cutWire(fp.TipWire, fp.TipStartPoint, fp.TipEndPoint, type)
-				if type == "Right" or (type == "Both" and not self.Initialized["Right"]):
-					fp.RightCutRoot = Draft.makeWire(rightpts, True, False)
-					fp.RightCutRoot.Label = "RightCutRoot"
-					fp.RightCutTip = Draft.makeWire(rightpts2, True, False)
-					fp.RightCutTip.Label = "RightCutTip"
+				if not self.Initialized["Right"]:
+					if fp.RightCutRoot == None:
+						fp.RightCutRoot = Draft.makeWire(rightpts, True, False)
+						fp.RightCutRoot.Label = "RightCutRoot"
+					if fp.RightCutTip == None:
+						fp.RightCutTip = Draft.makeWire(rightpts2, True, False)
+						fp.RightCutTip.Label = "RightCutTip"
 					self.Initialized[type] = True
-				if type == "Left" or (type == "Both" and not self.Initialized["Left"]):
-					fp.LeftCutRoot = Draft.makeWire(leftpts, True, False)
-					fp.LeftCutRoot.Label = "LeftCutRoot"
-					fp.LeftCutTip = Draft.makeWire(leftpts2, True, False)
-					fp.LeftCutTip.Label = "LeftCutTip"
+				if not self.Initialized["Left"]:
+					if fp.LeftCutRoot == None:
+						fp.LeftCutRoot = Draft.makeWire(leftpts, True, False)
+						fp.LeftCutRoot.Label = "LeftCutRoot"
+					if fp.LeftCutTip == None:
+						fp.LeftCutTip = Draft.makeWire(leftpts2, True, False)
+						fp.LeftCutTip.Label = "LeftCutTip"
 					self.Initialized[type] = True
 				del leftpts, leftpts2, rightpts, rightpts2
 
@@ -867,11 +872,11 @@ class LeadingEdge:
 		if fp.CutType == "Left": # and self.Initialized["Right"]:  # delete Right wires
 			if fp.RightCutRoot != None: FreeCAD.ActiveDocument.removeObject(fp.RightCutRoot.Name)
 			if fp.RightCutTip != None: FreeCAD.ActiveDocument.removeObject(fp.RightCutTip.Name)
-			self.Initialized["Right"] = False
+			if fp.RightCutRoot == None and fp.RightCutTip == None: self.Initialized["Right"] = False
 		if fp.CutType == "Right": # and self.Initialized["Left"]:  # delete Left wires
 			if fp.LeftCutRoot != None: FreeCAD.ActiveDocument.removeObject(fp.LeftCutRoot.Name)
 			if fp.LeftCutTip != None: FreeCAD.ActiveDocument.removeObject(fp.LeftCutTip.Name)
-			self.Initialized["Left"] = False
+			if fp.LeftCutRoot == None and fp.LeftCutTip == None: self.Initialized["Left"] = False
 	
 	def recompute(self, fp):
 		self.onChanged(fp, "RootWire")
@@ -1017,9 +1022,9 @@ class Section:
 		obj.addProperty("App::PropertyEnumeration", "RefPlane", "Settings", "Reference plane of the section").RefPlane = ["XY", "XZ", "YZ"]
 		obj.addProperty("App::PropertyLink", "CutPlane", "Section", "Plane of the section", 1)
 		obj.addProperty("App::PropertyLink", "Section", "Section", "Section's wire", 1)
-		obj.addProperty("App::PropertyVector", "planeToX", "CalculatedParam", "", 1).planeToX = VecNul
-		obj.addProperty("App::PropertyVector", "planeToNormal", "CalculatedParam", "", 1).planeToNormal = VecNul
-		obj.addProperty("App::PropertyPlacement", "planePlacement", "CalculatedParam", "", 1)
+		obj.addProperty("App::PropertyVector", "planeToX", "CalculatedParam", "", 0, True, True).planeToX = VecNul
+		obj.addProperty("App::PropertyVector", "planeToNormal", "CalculatedParam", "", 0, True, True).planeToNormal = VecNul
+		obj.addProperty("App::PropertyPlacement", "planePlacement", "CalculatedParam", "", 0, True, True)
 		obj.RefPlane = "XY"
 		self.bboxLength = 0.0
 		self.bboxOrigin = 0.0

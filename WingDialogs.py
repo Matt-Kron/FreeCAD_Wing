@@ -43,11 +43,23 @@ class WingDialog():
 							
 							"Section_button_select_object"	: "SectionSelectObject", 
 							"Section_button_apply"			: "SectionApply", 
-							"Section_button_reset"			: "SectionReset"}
+							"Section_button_reset"			: "SectionReset",
+							
+							"LeadingEdge_button_select_object": "LeadingEdge_button_select_object",
+							"LeadingEdge_button_apply"		: "LeadingEdge_button_apply",
+							"LeadingEdge_button_reset"		: "LeadingEdge_button_reset"}
+
 		self.connections_for_slider_changed = {
 							"Section_horizontalSlider"		: "SectionSlider", 
 							"Section_dial"					: "SectionDial",
 							
+							"LeadingEdge_dial_Rootstart"	: "LeadingEdgeSliderDialRootstart",
+							"LeadingEdge_dial_Rootend"		: "LeadingEdgeSliderDialRootend",
+							"LeadingEdge_dial_Tipstart"		: "LeadingEdgeSliderDialTipstart",
+							"LeadingEdge_horizontalSlider_Rootstart": "LeadingEdgeSliderDialRootstart",
+							"LeadingEdge_horizontalSlider_Rootend": "LeadingEdgeSliderDialRootend",
+							"LeadingEdge_horizontalSlider_Tipstart": "LeadingEdgeSliderDialTipstart",
+
 							"CutWire_dial_end"				: "CutWireSliderDialEnd",
 							"CutWire_dial_start"			: "CutWireSliderDialStart",
 							"CutWire_horizontalSlider_end"	: "CutWireSliderDialEnd",
@@ -57,6 +69,11 @@ class WingDialog():
 		self.connections_for_doubleSpin_changed = {
 							"Section_doubleSpinBox"			: "SectionDbleSpin", 
 							
+							"LeadingEdge_doubleSpinBox_Rootstart": "LeadingEdgeDbleSpinBoxRootstart",
+							"LeadingEdge_doubleSpinBox_Rootend": "LeadingEdgeDbleSpinBoxRootend",
+							"LeadingEdge_doubleSpinBox_Tipstart": "LeadingEdgeSpinBox",
+							"LeadingEdge_doubleSpinBox_gap": "LeadingEdgeDbleSpinBoxgap",
+
 							"CutWire_doubleSpinBox_end"		: "CutWireDbleSpinBoxEnd",
 							"CutWire_doubleSpinBox_start"	: "CutWireDbleSpinBoxStart"}
 #		self.connections_for_combobox_changed = {
@@ -175,16 +192,16 @@ class WingDialog():
 					msgCsl("CutWire object found")
 					self.CutWireObj = wobj
 					self.widget.ui.CutWire_info_selected_object.setText(wobj.Label + "(" + wobj.Name + ")")
-					max = len(wobj.Wire.Points)
-					self.widget.ui.CutWire_doubleSpinBox_start.setMaximum(max)
-					self.widget.ui.CutWire_horizontalSlider_start.setMaximum(int(max))
-					self.widget.ui.CutWire_doubleSpinBox_end.setMaximum(max)
-					self.widget.ui.CutWire_horizontalSlider_end.setMaximum(int(max))
+					maxi = len(wobj.Wire.Points)
+					self.widget.ui.CutWire_doubleSpinBox_start.setMaximum(maxi)
+					self.widget.ui.CutWire_horizontalSlider_start.setMaximum(int(maxi))
+					self.widget.ui.CutWire_doubleSpinBox_end.setMaximum(maxi)
+					self.widget.ui.CutWire_horizontalSlider_end.setMaximum(int(maxi))
 					self.widget.ui.CutWire_doubleSpinBox_start.setValue(wobj.StartPoint)
 					self.widget.ui.CutWire_doubleSpinBox_end.setValue(wobj.EndPoint)
 					self.widget.ui.CutWire_doubleSpinBox_gap.setValue(max(wobj.EndPoint - wobj.StartPoint, 0.0))
 					self.widget.ui.CutWire_comboBox.setCurrentIndex(self.widget.ui.CutWire_comboBox.findText(wobj.CutType))
-					self.CutWire_doubleSpinBox()
+					self.CutWireDbleSpinBoxStart()
 				else:
 					usrMsg("No wing wire object selected")
 
@@ -271,6 +288,156 @@ class WingDialog():
 			self.widget.ui.CutWire_doubleSpinBox_end.setValue(self.CutWireObj.EndPoint)
 			self.widget.ui.CutWire_comboBox.setCurrentIndex(self.widget.ui.CutWire_comboBox.findText(self.CutWireObj.CutType))
 
+	def LeadingEdge_button_select_object(self):
+		sl = FreeCADGui.Selection.getSelectionEx()
+		if len(sl) > 0:
+			obj = sl[0].Object
+			if hasattr(obj, "Proxy"):
+				if obj.Proxy.__class__.__name__ in ["LeadingEdge"]:
+					msgCsl("LeadingEdge object found")
+					self.LeadingEdgeObj = obj
+					self.widget.ui.LeadingEdge_info_selected_object.setText(obj.Label + "(" + obj.Name + ")")
+					maxi = len(obj.RootWire.Points)
+					self.widget.ui.LeadingEdge_doubleSpinBox_Rootstart.setMaximum(maxi)
+					self.widget.ui.LeadingEdge_horizontalSlider_Rootstart.setMaximum(int(maxi))
+					self.widget.ui.LeadingEdge_doubleSpinBox_Rootend.setMaximum(maxi)
+					self.widget.ui.LeadingEdge_horizontalSlider_Rootend.setMaximum(int(maxi))
+					self.widget.ui.LeadingEdge_doubleSpinBox_Rootstart.setValue(obj.RootStartPoint)
+					self.widget.ui.LeadingEdge_doubleSpinBox_Rootend.setValue(obj.RootEndPoint)
+					self.widget.ui.LeadingEdge_doubleSpinBox_gap.setMaximum(maxi - 0.001)
+					self.widget.ui.LeadingEdge_doubleSpinBox_gap.setValue(max(obj.RootEndPoint - obj.RootStartPoint, 0.0))
+					self.widget.ui.LeadingEdge_comboBox.setCurrentIndex(self.widget.ui.LeadingEdge_comboBox.findText(obj.CutType))
+					maxi = len(obj.TipWire.Points)
+					self.widget.ui.LeadingEdge_doubleSpinBox_Tipstart.setMaximum(maxi)
+					self.widget.ui.LeadingEdge_horizontalSlider_Tipstart.setMaximum(int(maxi))					
+					self.widget.ui.LeadingEdge_doubleSpinBox_Tipstart.setValue(obj.TipStartPoint)
+					self.LeadingEdgeDbleSpinBoxRootstart()
+				else:
+					usrMsg("No LeadingEdge object selected")
+		return
+
+	def LeadingEdgeSliderDialRootstart(self):
+		if self.internal: return
+		if hasattr(self, "LeadingEdgeObj"):
+			self.updateDbleSpin(self.widget.ui.LeadingEdge_doubleSpinBox_Rootstart, self.widget.ui.LeadingEdge_horizontalSlider_Rootstart,
+								self.widget.ui.LeadingEdge_dial_Rootstart)
+			self.LeadingEdgeDbleSpinBoxRootstart()
+
+	def LeadingEdgeSliderDialRootend(self):
+		if self.internal: return
+		if hasattr(self, "LeadingEdgeObj"):
+			self.updateDbleSpin(self.widget.ui.LeadingEdge_doubleSpinBox_Rootend, self.widget.ui.LeadingEdge_horizontalSlider_Rootend,
+								self.widget.ui.LeadingEdge_dial_Rootend)
+			self.LeadingEdgeDbleSpinBoxRootend()
+
+	def LeadingEdgeSliderDialTipstart(self):
+		if self.internal: return
+		if hasattr(self, "LeadingEdgeObj"):
+			self.updateDbleSpin(self.widget.ui.LeadingEdge_doubleSpinBox_Tipstart, self.widget.ui.LeadingEdge_horizontalSlider_Tipstart,
+								self.widget.ui.LeadingEdge_dial_Tipstart)
+#			self.LeadingEdgeUpdatePlane()
+
+	def LeadingEdgeDbleSpinBoxRootstart(self):
+		if hasattr(self, "LeadingEdgeObj"):
+			startvalue = self.widget.ui.LeadingEdge_doubleSpinBox_Rootstart.value()
+			endvalue = self.widget.ui.LeadingEdge_doubleSpinBox_Rootend.value()
+			maxi = self.widget.ui.LeadingEdge_doubleSpinBox_Rootend.maximum()
+			gap = self.widget.ui.LeadingEdge_doubleSpinBox_gap.value()
+			self.internal = True
+			if self.widget.ui.LeadingEdge_CheckBox_gap.isChecked():
+				if (startvalue + gap) > maxi:
+					return
+				else:
+					self.widget.ui.LeadingEdge_doubleSpinBox_Rootend.setValue(startvalue + gap)
+			else:
+				if startvalue >= endvalue:
+					self.widget.ui.LeadingEdge_doubleSpinBox_Rootend.setValue(min(startvalue + 1, self.widget.ui.LeadingEdge_doubleSpinBox_Rootend.maximum()))
+				self.widget.ui.LeadingEdge_doubleSpinBox_gap.setValue(self.widget.ui.LeadingEdge_doubleSpinBox_Rootend.value() - startvalue)
+			if self.widget.ui.LeadingEdge_CheckBox_EqualRoot.isChecked():
+				self.widget.ui.LeadingEdge_doubleSpinBox_Tipstart.setValue(startvalue)
+			self.LeadingEdgeSpinBox()
+			self.internal = False
+
+	def LeadingEdgeDbleSpinBoxRootend(self):
+		if hasattr(self, "LeadingEdgeObj"):
+			startvalue = self.widget.ui.LeadingEdge_doubleSpinBox_Rootstart.value()
+			endvalue = self.widget.ui.LeadingEdge_doubleSpinBox_Rootend.value()
+			gap = self.widget.ui.LeadingEdge_doubleSpinBox_gap.value()
+			self.internal = True
+			if self.widget.ui.LeadingEdge_CheckBox_gap.isChecked():
+				if (endvalue - gap) < 0:
+					return
+				else:
+					self.widget.ui.LeadingEdge_doubleSpinBox_Rootstart.setValue(endvalue - gap)
+			else:
+				if startvalue >= endvalue:
+					self.widget.ui.LeadingEdge_doubleSpinBox_Rootstart.setValue(max(endvalue - 1, 0))
+				self.widget.ui.LeadingEdge_doubleSpinBox_gap.setValue(endvalue - self.widget.ui.LeadingEdge_doubleSpinBox_Rootstart.value())
+			self.LeadingEdgeSpinBox()
+			self.internal = False
+
+	def LeadingEdgeSpinBox(self):
+		if hasattr(self, "LeadingEdgeObj"):
+			self.LeadingEdgeUpdatePlane()
+			self.updateSliderDial(self.widget.ui.LeadingEdge_doubleSpinBox_Rootstart.value(), self.widget.ui.LeadingEdge_horizontalSlider_Rootstart,
+									self.widget.ui.LeadingEdge_dial_Rootstart)
+			self.updateSliderDial(self.widget.ui.LeadingEdge_doubleSpinBox_Rootend.value(), self.widget.ui.LeadingEdge_horizontalSlider_Rootend,
+									self.widget.ui.LeadingEdge_dial_Rootend)
+			self.updateSliderDial(self.widget.ui.LeadingEdge_doubleSpinBox_Tipstart.value(), self.widget.ui.LeadingEdge_horizontalSlider_Tipstart,
+									self.widget.ui.LeadingEdge_dial_Tipstart)
+
+	def LeadingEdgeUpdatePlane(self):
+		'''update the position of the LeadingEdge plane in the FreeCAD view'''
+		RStartPt = DiscretizedPoint(self.LeadingEdgeObj.RootWire, self.widget.ui.LeadingEdge_doubleSpinBox_Rootstart.value())
+		REndPt = DiscretizedPoint(self.LeadingEdgeObj.RootWire, self.widget.ui.LeadingEdge_doubleSpinBox_Rootend.value())
+		TStartPt = DiscretizedPoint(self.LeadingEdgeObj.TipWire, self.widget.ui.LeadingEdge_doubleSpinBox_Tipstart.value())
+		vec1 = PtsToVec(RStartPt, REndPt)
+		vec2 = PtsToVec(RStartPt, TStartPt)
+		normVec = vec2.cross(vec1)
+		if self.LeadingEdgeObj.Plane == None:
+#			mplane = Part.makePlane(vec1.Length + 10, vec2.Length + 10, RStartPt, normVec)
+			mplane = FreeCAD.ActiveDocument.addObject("Part::Plane","Plane")
+			mplane.ViewObject.ShapeColor = (0.33,0.67,1.00)
+			mplane.ViewObject.LineColor = (1.00,0.67,0.00)
+			mplane.ViewObject.LineWidth = 1.00
+			mplane.ViewObject.Transparency = 50
+		else:
+			mplane = self.LeadingEdgeObj.Plane
+		mplane.Length = vec1.Length + 10
+		mplane.Width = vec2.Length + 10
+		mrot = FreeCAD.Rotation(Vector(0, 1, 0), vec2)
+		mplane.Placement = FreeCAD.Placement(VecNul, mrot)
+		mrot = FreeCAD.Rotation(mplane.Shape.normalAt(0, 0).multiply(-1), normVec)
+		mplane.Placement = FreeCAD.Placement(RStartPt.add(vec1.multiply(-5 / vec1.Length)), mrot).multiply(mplane.Placement)
+		mplane.Placement.move(vec2.multiply(-5 / vec2.Length))
+		self.LeadingEdgeObj.Plane = mplane
+		FreeCAD.ActiveDocument.recompute()
+
+	def LeadingEdge_button_apply(self):
+		if hasattr(self, "LeadingEdgeObj"):
+			self.LeadingEdgeObj.RootStartPoint = self.widget.ui.LeadingEdge_doubleSpinBox_Rootstart.value()
+			self.LeadingEdgeObj.RootEndPoint = self.widget.ui.LeadingEdge_doubleSpinBox_Rootend.value()
+			self.LeadingEdgeObj.TipStartPoint = self.widget.ui.LeadingEdge_doubleSpinBox_Tipstart.value()
+			if hasattr(self.LeadingEdgeObj, "CutType"):
+				self.LeadingEdgeObj.CutType = self.widget.ui.LeadingEdge_comboBox.currentText()
+			FreeCAD.ActiveDocument.recompute()
+
+	def LeadingEdge_button_reset(self):
+		if hasattr(self, "LeadingEdgeObj"):
+			self.widget.ui.LeadingEdge_doubleSpinBox_gap.setValue(max(self.LeadingEdgeObj.RootEndPoint- self.LeadingEdgeObj.RootStartPoint, 0.0))
+			self.widget.ui.LeadingEdge_doubleSpinBox_Rootstart.setValue(self.LeadingEdgeObj.RootStartPoint)
+			self.widget.ui.LeadingEdge_doubleSpinBox_Rootend.setValue(self.LeadingEdgeObj.RootEndPoint)
+			self.widget.ui.LeadingEdge_doubleSpinBox_Tipstart.setValue(self.LeadingEdgeObj.TipStartPoint)
+			self.widget.ui.LeadingEdge_comboBox.setCurrentIndex(self.widget.ui.LeadingEdge_comboBox.findText(self.LeadingEdgeObj.CutType))
+
+	def LeadingEdgeDbleSpinBoxgap(self, value):
+		if hasattr(self, "LeadingEdgeObj"):
+			startvalue = self.widget.ui.LeadingEdge_doubleSpinBox_Rootstart.value()
+			maxi = self.widget.ui.LeadingEdge_doubleSpinBox_Rootend.maximum()
+			self.widget.ui.LeadingEdge_doubleSpinBox_Rootend.setValue(min(startvalue + value, maxi))
+			endvalue = self.widget.ui.LeadingEdge_doubleSpinBox_Rootend.value()
+			if (endvalue - startvalue) < value:
+				self.widget.ui.LeadingEdge_doubleSpinBox_Rootstart.setValue(max(endvalue - value, 0.0))
 
 
 class CommandWingDialog:
