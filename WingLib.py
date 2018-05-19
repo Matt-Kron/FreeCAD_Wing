@@ -102,8 +102,8 @@ def tangentVec(wire, index, mtype):
 		vectan = VecNul
 	return vectan
 
-def curveVec(wire, index):
-	veccurv = tangentVec(wire, index, "PreviousAndNext").cross(normalVec(wire, index))
+def curveVec(wire, index, mtype):
+	veccurv = tangentVec(wire, index, mtype).cross(normalVec(wire, index))
 	return veccurv
 	
 def DiscretizedPoint(wire, value):

@@ -643,12 +643,26 @@ class WrapLeadingEdge:
 				pt = DiscretizedPoint(wire, end)
 				pts.append(pt)
 				nbp += 1
+				nbwire = len(wire.Points)
+#				msgCsl("int(start): " + str(int(start)) + " int(end): " + str(int(end)))
+#				msgCsl("nbwire: " + str(nbwire) + " nbp: " + str(nbp))
+				if (int(start) + nbp) > (nbwire - 1):  # end point is on the last edge
+					vecdec = curveVec(wire, int(start) + nbp - 1, "Previous")
+					vecdec.normalize()
+					vecdec.multiply(sens * fp.Thickness)
+					pts.append(pts[nbp].add(vecdec))
+					nbp -= 1
+#					msgCsl ("int(start) + nbp: " + str(int(start) + nbp))
 #			nbpts = 2 * nbp #len(pts)
-			for i in range(nbp, -1, -1):
-				vecdec = curveVec(wire, int(start) + i)
+			for i in range(nbp, 0, -1):
+				vecdec = curveVec(wire, int(start) + i, "Previous")
 				vecdec.normalize()
 				vecdec.multiply(sens * fp.Thickness)
 				pts.append(pts[i].add(vecdec))
+			vecdec = curveVec(wire, int(start), "Next")
+			vecdec.normalize()
+			vecdec.multiply(sens * fp.Thickness)
+			pts.append(pts[0].add(vecdec))			
 		return pts
 	
 	def calculateCutWirePoints(self, wire, wrap, start, end):
@@ -662,7 +676,7 @@ class WrapLeadingEdge:
 				i += 1
 			if start > int(start):  # if start point is inside edge
 				pts2.append(pts[0])
-			for i in range(2 * nbp - 1, nbp - 2, -1):  # end=nbp then -1 because of index start at 0, then -1 because range stops at end-1
+			for i in range(2 * nbp - 1, nbp - 2, -1):  # end = nbp then -1 because of index start at 0, then -1 because range stops at end-1
 				pts2.append(pts[i])
 #			if end > int(end):
 #				pts2.append(pts[nbp])
@@ -702,7 +716,7 @@ class WrapLeadingEdge:
 			wrappts = fp.Wrap.Points
 			nbwrap = len(wrappts)
 			nbpts = len(pts)
-			msgCsl("len(wrappts): " + str(nbwrap) + "  len(pts): " + str(nbpts))
+#			msgCsl("len(wrappts): " + str(nbwrap) + "  len(pts): " + str(nbpts))
 			if nbpts < nbwrap:
 				for i in range(nbpts, nbwrap, +1):
 #						msgCsl("count i: " + str(i))
@@ -721,7 +735,7 @@ class WrapLeadingEdge:
 			wrappts = cutwire.Points
 			nbwrap = len(wrappts)
 			nbpts = len(pts)
-			msgCsl("len(wrappts): " + str(nbwrap) + "  len(pts): " + str(nbpts))
+#			msgCsl("len(wrappts): " + str(nbwrap) + "  len(pts): " + str(nbpts))
 			if nbpts < nbwrap:
 				for i in range(nbpts, nbwrap, +1):
 #						msgCsl("count i: " + str(i))
@@ -745,6 +759,8 @@ class ViewProviderWrapLeadingEdge(ViewProviderGeneric):
 		doc = FreeCAD.ActiveDocument
 		if obj.Wrap != None: doc.removeObject(obj.Wrap.Name)
 		if obj.CutWire != None: doc.removeObject(obj.CutWire.Name)
+		if obj.StartPointObj != None: doc.removeObject(obj.StartPointObj.Name)
+		if obj.EndPointObj != None: doc.removeObject(obj.EndPointObj.Name)
 		return True
 	
 

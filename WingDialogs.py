@@ -117,13 +117,13 @@ class WingDialog():
 	def SectionSelectObject(self):
 		sl = FreeCADGui.Selection.getSelectionEx()
 		if len(sl) > 0:
-			wobj = sl[0].Object
-			if wobj.Proxy.__class__.__name__ == "Section":
+			obj = sl[0].Object
+			if obj.Proxy.__class__.__name__ == "Section":
 				msgCsl("Section object found")
-				self.SectionObj = wobj
-				self.widget.ui.Section_info_selected_object.setText(wobj.Label + "(" + wobj.Name + ")")
+				self.SectionObj = obj
+				self.widget.ui.Section_info_selected_object.setText(obj.Label + "(" + obj.Name + ")")
 				self.SectionUpdateParam()
-				self.SectionDbleSpin()
+				self.SectionDbleSpin(obj.Offset)
 
 	def SectionUpdateParam(self):
 		if self.SectionObj.RefPlane == "XY": self.widget.ui.Section_radioButton_XY.setChecked(True)
@@ -186,21 +186,22 @@ class WingDialog():
 	def CutWire_button_select_object(self):
 		sl = FreeCADGui.Selection.getSelectionEx()
 		if len(sl) > 0:
-			wobj = sl[0].Object
-			if hasattr(wobj, "Proxy"):
-				if wobj.Proxy.__class__.__name__ in ["CutWire", "WrapLeadingEdge"]:
+			obj = sl[0].Object
+			if hasattr(obj, "Proxy"):
+				if obj.Proxy.__class__.__name__ in ["CutWire", "WrapLeadingEdge"]:
 					msgCsl("CutWire object found")
-					self.CutWireObj = wobj
-					self.widget.ui.CutWire_info_selected_object.setText(wobj.Label + "(" + wobj.Name + ")")
-					maxi = len(wobj.Wire.Points)
-					self.widget.ui.CutWire_doubleSpinBox_start.setMaximum(maxi)
-					self.widget.ui.CutWire_horizontalSlider_start.setMaximum(int(maxi))
-					self.widget.ui.CutWire_doubleSpinBox_end.setMaximum(maxi)
-					self.widget.ui.CutWire_horizontalSlider_end.setMaximum(int(maxi))
-					self.widget.ui.CutWire_doubleSpinBox_start.setValue(wobj.StartPoint)
-					self.widget.ui.CutWire_doubleSpinBox_end.setValue(wobj.EndPoint)
-					self.widget.ui.CutWire_doubleSpinBox_gap.setValue(max(wobj.EndPoint - wobj.StartPoint, 0.0))
-					self.widget.ui.CutWire_comboBox.setCurrentIndex(self.widget.ui.CutWire_comboBox.findText(wobj.CutType))
+					self.CutWireObj = obj
+					self.widget.ui.CutWire_info_selected_object.setText(obj.Label + "(" + obj.Name + ")")
+					maxi = len(obj.Wire.Points)
+					self.widget.ui.CutWire_doubleSpinBox_start.setMaximum(maxi - 0.01)
+					self.widget.ui.CutWire_horizontalSlider_start.setMaximum(int(maxi - 1))
+					self.widget.ui.CutWire_doubleSpinBox_end.setMaximum(maxi - 0.01)
+					self.widget.ui.CutWire_horizontalSlider_end.setMaximum(int(maxi - 1))
+					self.widget.ui.CutWire_doubleSpinBox_start.setValue(obj.StartPoint)
+					self.widget.ui.CutWire_doubleSpinBox_end.setValue(obj.EndPoint)
+					self.widget.ui.CutWire_doubleSpinBox_gap.setValue(max(obj.EndPoint - obj.StartPoint, 0.0))
+					if hasattr(obj, "CutType"):
+						self.widget.ui.CutWire_comboBox.setCurrentIndex(self.widget.ui.CutWire_comboBox.findText(obj.CutType))
 					self.CutWireDbleSpinBoxStart()
 				else:
 					usrMsg("No wing wire object selected")
@@ -286,7 +287,8 @@ class WingDialog():
 			self.widget.ui.CutWire_doubleSpinBox_gap.setValue(max(self.CutWireObj.EndPoint - self.CutWireObj.StartPoint, 0.0))
 			self.widget.ui.CutWire_doubleSpinBox_start.setValue(self.CutWireObj.StartPoint)
 			self.widget.ui.CutWire_doubleSpinBox_end.setValue(self.CutWireObj.EndPoint)
-			self.widget.ui.CutWire_comboBox.setCurrentIndex(self.widget.ui.CutWire_comboBox.findText(self.CutWireObj.CutType))
+			if hasattr(self.CutWireObj, "CutType"):
+				self.widget.ui.CutWire_comboBox.setCurrentIndex(self.widget.ui.CutWire_comboBox.findText(self.CutWireObj.CutType))
 
 	def LeadingEdge_button_select_object(self):
 		sl = FreeCADGui.Selection.getSelectionEx()
@@ -298,18 +300,18 @@ class WingDialog():
 					self.LeadingEdgeObj = obj
 					self.widget.ui.LeadingEdge_info_selected_object.setText(obj.Label + "(" + obj.Name + ")")
 					maxi = len(obj.RootWire.Points)
-					self.widget.ui.LeadingEdge_doubleSpinBox_Rootstart.setMaximum(maxi)
-					self.widget.ui.LeadingEdge_horizontalSlider_Rootstart.setMaximum(int(maxi))
-					self.widget.ui.LeadingEdge_doubleSpinBox_Rootend.setMaximum(maxi)
-					self.widget.ui.LeadingEdge_horizontalSlider_Rootend.setMaximum(int(maxi))
+					self.widget.ui.LeadingEdge_doubleSpinBox_Rootstart.setMaximum(maxi - 0.01)
+					self.widget.ui.LeadingEdge_horizontalSlider_Rootstart.setMaximum(int(maxi) - 1)
+					self.widget.ui.LeadingEdge_doubleSpinBox_Rootend.setMaximum(maxi - 0.01)
+					self.widget.ui.LeadingEdge_horizontalSlider_Rootend.setMaximum(int(maxi) - 1)
 					self.widget.ui.LeadingEdge_doubleSpinBox_Rootstart.setValue(obj.RootStartPoint)
 					self.widget.ui.LeadingEdge_doubleSpinBox_Rootend.setValue(obj.RootEndPoint)
-					self.widget.ui.LeadingEdge_doubleSpinBox_gap.setMaximum(maxi - 0.001)
+					self.widget.ui.LeadingEdge_doubleSpinBox_gap.setMaximum(maxi - 1.001)
 					self.widget.ui.LeadingEdge_doubleSpinBox_gap.setValue(max(obj.RootEndPoint - obj.RootStartPoint, 0.0))
 					self.widget.ui.LeadingEdge_comboBox.setCurrentIndex(self.widget.ui.LeadingEdge_comboBox.findText(obj.CutType))
 					maxi = len(obj.TipWire.Points)
-					self.widget.ui.LeadingEdge_doubleSpinBox_Tipstart.setMaximum(maxi)
-					self.widget.ui.LeadingEdge_horizontalSlider_Tipstart.setMaximum(int(maxi))					
+					self.widget.ui.LeadingEdge_doubleSpinBox_Tipstart.setMaximum(maxi - 0.01)
+					self.widget.ui.LeadingEdge_horizontalSlider_Tipstart.setMaximum(int(maxi) - 1)					
 					self.widget.ui.LeadingEdge_doubleSpinBox_Tipstart.setValue(obj.TipStartPoint)
 					self.LeadingEdgeDbleSpinBoxRootstart()
 				else:
