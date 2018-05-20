@@ -71,7 +71,7 @@ class WingDialog():
 							
 							"LeadingEdge_doubleSpinBox_Rootstart": "LeadingEdgeDbleSpinBoxRootstart",
 							"LeadingEdge_doubleSpinBox_Rootend": "LeadingEdgeDbleSpinBoxRootend",
-							"LeadingEdge_doubleSpinBox_Tipstart": "LeadingEdgeSpinBox",
+							"LeadingEdge_doubleSpinBox_Tipstart": "LeadingEdgeDbleSpinBoxTipstart",
 							"LeadingEdge_doubleSpinBox_gap": "LeadingEdgeDbleSpinBoxgap",
 
 							"CutWire_doubleSpinBox_end"		: "CutWireDbleSpinBoxEnd",
@@ -377,6 +377,11 @@ class WingDialog():
 				self.widget.ui.LeadingEdge_doubleSpinBox_gap.setValue(endvalue - self.widget.ui.LeadingEdge_doubleSpinBox_Rootstart.value())
 			self.LeadingEdgeSpinBox()
 			self.internal = False
+
+	def LeadingEdgeDbleSpinBoxTipstart(self):
+		self.internal = True
+		self.LeadingEdgeSpinBox()
+		self.internal = False
 
 	def LeadingEdgeSpinBox(self):
 		if hasattr(self, "LeadingEdgeObj"):

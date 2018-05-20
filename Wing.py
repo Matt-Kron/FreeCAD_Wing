@@ -264,6 +264,7 @@ class CoordSys:
 		obj.addProperty("App::PropertyLink","Bend","Axis","Bend axis", 1)
 		obj.addProperty("App::PropertyPlacement","LocalPlacement","Axis","Placement from linked object origin to new coordsys")
 		obj.addProperty("App::PropertyEnumeration","Direction","Settings","X axis tangent to edge or Y axis through center of mass").Direction = ["Edge", "CenterOfMass"]
+		obj.addProperty("App::PropertyEnumeration","Type","Settings","Reference point at the start or end of the edge").Type = ["Start", "End"]
 		obj.Tangent = Draft.makeWire([VecNul, FreeCAD.Vector(2,0,0)],closed=False,face=False,support=None)
 		obj.Normal = Draft.makeWire([VecNul, FreeCAD.Vector(0,0,2)],closed=False,face=False,support=None)
 		obj.Bend = Draft.makeWire([VecNul, FreeCAD.Vector(0,2,0)],closed=False,face=False,support=None)
@@ -276,6 +277,7 @@ class CoordSys:
 		self.pName = ""
 		obj.CenterType = "Vertexes"
 		obj.Direction = "Edge"
+		obj.Type = "Start"
 		obj.Proxy = self
 
 	def execute(self, fp):
@@ -293,7 +295,7 @@ class CoordSys:
 						self.updatePlacement(fp)
 				else:
 					self.pName = ""
-		if prop in ["CenterType","VertexNum", "Normal", "Direction", "Angle"]:
+		if prop in ["CenterType","VertexNum", "Normal", "Direction", "Angle", "Type"]:
 #			msgCsl("CoordSys class property change: " + str(prop) + "  Type of property :" + str(fp.getTypeIdOfProperty(prop)))
 			self.updatePlacement(fp)
 
@@ -332,7 +334,6 @@ class CoordSys:
 			if fp.LinkedObject != None and hasattr(fp.LinkedObject.Shape, "Face1"):
 				ObjectOk, ObjectEdges, ObjectCenterOfMass, ObjectOrigin = self.updateRefFace(fp)
 				if ObjectOk:
-					index = int(fp.VertexNum % len(ObjectEdges))  # % len(ObjectEdges) to avoid error if VertexNum is set to high
 					if fp.LinkedObject.TypeId == "PartDesign::Pad":
 						fp.LinkedObject.OutList[0].AttachmentOffset = fp.Tangent.Placement
 					else:
@@ -341,6 +342,7 @@ class CoordSys:
 					ObjectOk, ObjectEdges, ObjectCenterOfMass, ObjectOrigin = self.updateRefFace(fp)
 					Fract = int((round((round(fp.VertexNum,2) - int(fp.VertexNum)), 2) * 100 + 100)) % 100
 					msgCsl("ObjectOrigin : "+ format(ObjectOrigin))
+					index = int((fp.VertexNum) % len(ObjectEdges))  # % len(ObjectEdges) to avoid error if VertexNum is set to high
 					mEdge = ObjectEdges[index]
 					longueur = mEdge.LastParameter - mEdge.FirstParameter
 					if mEdge.Orientation == "Reversed": Fract = 100 - Fract #;msgCsl("reverse fract")
@@ -352,15 +354,23 @@ class CoordSys:
 					else:
 						NewOrigin = Pt
 						mBend = PtsToVec(NewOrigin, ObjectCenterOfMass)
-					msgCsl("NewOrigin " + format(NewOrigin))
-					mTrans = PtsToVec(NewOrigin,ObjectOrigin)
-					msgCsl("mTrans " + format(mTrans))
+#					if i == 1: mEdge = ObjectEdges[index - 1]  # always uses the VertexNum edge for the tangent calculation, if if Type is "End"
 					if fp.CenterType == "Vertexes" and fp.Direction == "Edge":
 						vectan = mEdge.Curve.tangent(longueur * (100 - Fract) / 100)[0] #PtsToVec(self.ObjectEdges[int(fp.VertexNum)].Start, self.ObjectEdges[int(fp.VertexNum)].End)
 						if mEdge.Orientation == "Forward": vectan.multiply(-1)
 						mRot = Rotation(vectan, fp.Tangent.End.sub(fp.Tangent.Start))
+						if fp.Type == "End":   # use the next edge to define the point, but orientation stays based on the VertexNum edge
+#							index = int((fp.VertexNum + 1) % len(ObjectEdges))  # % len(ObjectEdges) to avoid error if VertexNum is set to high
+#							mEdge = ObjectEdges[index]
+#							longueur = mEdge.LastParameter - mEdge.FirstParameter
+							Fract = 100 - Fract
+							if mEdge.Orientation == "Reversed": Fract = 100 - Fract #;msgCsl("reverse fract")
+							NewOrigin = mEdge.Curve.value(longueur * (100 - Fract) / 100) #mEdge.discretize(101)
 					else:
 						mRot = Rotation(mBend,fp.Bend.End.sub(fp.Bend.Start))
+					msgCsl("NewOrigin " + format(NewOrigin))
+					mTrans = PtsToVec(NewOrigin,ObjectOrigin)
+					msgCsl("mTrans " + format(mTrans))
 					mPlacement2 = FreeCAD.Placement(mTrans,mRot,NewOrigin)
 					fp.LocalPlacement = mPlacement2
 					# Add rotation angle from CoordSys property
@@ -462,7 +472,7 @@ class Rod:
 			Pt = Pts[Fract]
 		else:
 			Pt = fp.RootWire.Shape.Vertexes[int(fp.RootPoint)].Point
-		msgCsl("Pt "+ format(Pt))
+		msgCsl("VecRoot Pt "+ format(Pt))
 		# Root tangent, curvature axis calculated with adjacent points:
 		VecRootTangent = tangentVec(fp.RootWire, int(fp.RootPoint), fp.TangentType)
 		VecRootNormal = normalVec(fp.RootWire, int(fp.RootPoint))
@@ -495,7 +505,7 @@ class Rod:
 			Pt = Pts[Fract]
 		else:
 			Pt = fp.TipWire.Shape.Vertexes[int(fp.TipPoint)].Point
-		msgCsl("Pt "+ format(Pt))
+		msgCsl("VecTip Pt "+ format(Pt))
 		# Tip tangent, normal, curvature axis calculated with adjacent points:
 		VecTipTangent = tangentVec(fp.TipWire, int(fp.TipPoint), fp.TangentType)
 		VecTipNormal = normalVec(fp.TipWire, int(fp.TipPoint))
@@ -518,7 +528,11 @@ class Rod:
 #		msgCsl("VecDirRod "+ format(self.VecDirRod))
 
 	def calcVecRod(self, fp):
-		self.VecRodCenter = setVec(fp.CoordSystem.Tangent.Start)
+		if fp.CoordSystem.TypeId == "App::FeaturePython":
+			if fp.CoordSystem.Proxy.__class__.__name__ == "CoordSys":
+				self.VecRodCenter = setVec(fp.CoordSystem.Tangent.Start)
+		elif hasattr(fp.CoordSystem, "Placement"):
+			self.VecRodCenter = setVec(fp.CoordSystem.Placement.Base)
 
 	def updateRootPosition(self, fp):
 		mDir = getVec(self.VecDirRod)
@@ -529,20 +543,31 @@ class Rod:
 			self.calcVecRod(fp)
 			mDir = mDir.sub(PtsToVec(getVec(self.VecRoot),getVec(self.VecRodCenter)))
 			mPlacement = Placement(mDir,Rotation())
-			mPlacement = mPlacement.multiply(fp.CoordSystem.Tangent.Placement)
+			if fp.CoordSystem.TypeId == "App::FeaturePython":
+				if fp.CoordSystem.Proxy.__class__.__name__ == "CoordSys":
+					mPlacement = mPlacement.multiply(fp.CoordSystem.Tangent.Placement)
+			elif hasattr(fp.CoordSystem, "Placement"):
+				mPlacement = mPlacement.multiply(fp.CoordSystem.Placement)
 			mPlacement = Placement(VecNul, Rotation(mDir, fp.AngleOffset), DiscretizedPoint(fp.RootWire, fp.RootPoint)).multiply(mPlacement)
-			self.updateAxis(fp.CoordSystem, mPlacement)
+			if fp.CoordSystem.TypeId == "App::FeaturePython":
+				if fp.CoordSystem.Proxy.__class__.__name__ == "CoordSys": #TypeId == "FeaturePython::CoordSys":
+					self.updateAxis(fp.CoordSystem, mPlacement)
+			elif hasattr(fp.CoordSystem, "Placement"):
+				fp.CoordSystem.Placement = mPlacement
+#			self.updateAxis(fp.CoordSystem, mPlacement)
 			self.updateLength(fp)
 
 	def updateLength(self, fp):
-		if self.check(fp)["All"]:
-			if fp.CoordSystem.LinkedObject.TypeId in ["Part::Box","Part::Cylinder"]:
-				fp.CoordSystem.LinkedObject.Height = getVec(self.VecDirRod).Length + float(fp.RootOffset) + float(fp.TipOffset)
-#				msgCsl("indice VecDirRod: " + str(self.VecList["VecDirRod"]) + " vector VecDirRod: " + format(fp.VectorList[self.VecList["VecDirRod"]]))
-			if fp.CoordSystem.LinkedObject.TypeId == "PartDesign::Pad":
-				fp.CoordSystem.LinkedObject.Length = getVec(self.VecDirRod).Length + float(fp.RootOffset) + float(fp.TipOffset)
-			if fp.CoordSystem.LinkedObject.TypeId == "Part::Extrusion":
-				fp.CoordSystem.LinkedObject.LengthFwd = getVec(self.VecDirRod).Length + float(fp.RootOffset) + float(fp.TipOffset)
+		if fp.CoordSystem.TypeId == "App::FeaturePython":
+			if fp.CoordSystem.Proxy.__class__.__name__ == "CoordSys":
+				if self.check(fp)["All"] and (fp.CoordSystem.LinkedObject != None):
+					if fp.CoordSystem.LinkedObject.TypeId in ["Part::Box","Part::Cylinder"]:
+						fp.CoordSystem.LinkedObject.Height = getVec(self.VecDirRod).Length + float(fp.RootOffset) + float(fp.TipOffset)
+	#					msgCsl("indice VecDirRod: " + str(self.VecList["VecDirRod"]) + " vector VecDirRod: " + format(fp.VectorList[self.VecList["VecDirRod"]]))
+					if fp.CoordSystem.LinkedObject.TypeId == "PartDesign::Pad":
+						fp.CoordSystem.LinkedObject.Length = getVec(self.VecDirRod).Length + float(fp.RootOffset) + float(fp.TipOffset)
+					if fp.CoordSystem.LinkedObject.TypeId == "Part::Extrusion":
+						fp.CoordSystem.LinkedObject.LengthFwd = getVec(self.VecDirRod).Length + float(fp.RootOffset) + float(fp.TipOffset)
 
 	def updateAxis(self, obj, placmnt):
 		obj.Tangent.Placement = placmnt
@@ -554,6 +579,10 @@ class Rod:
 		self.calcVecRoot(fp)
 		if self.check(fp)["All"]:
 			self.calcVecTip(fp)
+
+		#**************************************
+		# First align the rod with the line defined by RootPoint and TipPoint
+		#**************************************
 		VecRoot = getVec(self.VecRoot)
 		VecDirRod = getVec(self.VecDirRod)
 		mRot = FreeCAD.Rotation(FreeCAD.Vector(0,0,1), VecDirRod)
@@ -562,7 +591,15 @@ class Rod:
 		mPlacementAlign.move(VecRoot)
 		mPlacementAlign = FreeCAD.Placement(VecNul, mRot, VecRoot).multiply(mPlacementAlign)
 #			msgCsl("mPlacementAlign "+ format(mPlacementAlign))
-		self.updateAxis(fp.CoordSystem, mPlacementAlign)
+		if fp.CoordSystem.TypeId == "App::FeaturePython":
+			if fp.CoordSystem.Proxy.__class__.__name__ == "CoordSys":
+				self.updateAxis(fp.CoordSystem, mPlacementAlign)
+		elif hasattr(fp.CoordSystem, "Placement"):
+			fp.CoordSystem.Placement = mPlacementAlign
+
+		#**************************************
+		# Then rotate the rod taking reference on the tangents of the root and tip wires
+		#**************************************
 		if fp.AutoRotate and getVec(self.VecRootTangent) != VecNul:
 			VecRootTangent = getVec(self.VecRootTangent)
 			VecTipTangent = getVec(self.VecTipTangent)
@@ -572,12 +609,22 @@ class Rod:
 #			msgCsl("VecBisector "+ format(VecBisector))
 #			msgCsl("VecRootTangent "+ format(VecRootTangent))
 #			msgCsl("VecTipTangent "+ format(VecTipTangent))
-			mRot = FreeCAD.Rotation(fp.CoordSystem.Tangent.End.sub(fp.CoordSystem.Tangent.Start), VecBisector)
-#				msgCsl("Rotation "+ format(mRot))
-			mPlacement = FreeCAD.Placement(VecNul, mRot, VecRoot)
 #				msgCsl("Rotation center: " + format(DiscretizedPoint(fp.RootWire, fp.RootPoint)))
 #				msgCsl("Placement Rotation "+ format(mPlacement))
-			self.updateAxis(fp.CoordSystem, mPlacement.multiply(fp.CoordSystem.Tangent.Placement))
+			if fp.CoordSystem.TypeId == "App::FeaturePython":
+				if fp.CoordSystem.Proxy.__class__.__name__ == "CoordSys":
+					mRot = FreeCAD.Rotation(fp.CoordSystem.Tangent.End.sub(fp.CoordSystem.Tangent.Start), VecBisector)
+#					msgCsl("Rotation "+ format(mRot))
+					mPlacement = FreeCAD.Placement(VecNul, mRot, VecRoot)
+					self.updateAxis(fp.CoordSystem, mPlacement.multiply(fp.CoordSystem.Tangent.Placement))
+			elif hasattr(fp.CoordSystem, "Placement"):
+				xaxis = Vector(1, 0, 0)
+				xaxis = fp.CoordSystem.Placement.Rotation.multVec(xaxis)
+				mRot = FreeCAD.Rotation(xaxis, VecBisector)
+#				msgCsl("Rotation "+ format(mRot))
+				mPlacement = FreeCAD.Placement(VecNul, mRot, VecRoot)
+				fp.CoordSystem.Placement = mPlacement.multiply(fp.CoordSystem.Placement)
+#			self.updateAxis(fp.CoordSystem, mPlacement.multiply(fp.CoordSystem.Tangent.Placement))
 		self.updateRootPosition(fp)
 
 	def recompute(self, fp):
@@ -601,8 +648,8 @@ class WrapLeadingEdge:
 		obj.addProperty("App::PropertyLink", "Wrap", "LinkedObject", "Wrapped wire", 1)
 		obj.addProperty("App::PropertyLink", "CutWire", "LinkedObject", "Cut wire after having cut the wrap", 1)
 		obj.addProperty("App::PropertyBool", "Inward", "Settings", "Draw the wrap inward or backward").Inward = True
-		obj.addProperty("App::PropertyLink","StartPointObj","LinkedObject","", -1)
-		obj.addProperty("App::PropertyLink","EndPointObj","LinkedObject","", -1)
+		obj.addProperty("App::PropertyLink","StartPointObj","LinkedObject","", 0, True, True)
+		obj.addProperty("App::PropertyLink","EndPointObj","LinkedObject","", 0, True, True)
 #		obj.addProperty("App::PropertyBool", "DeleteLoop", "Settings", "Delete loop of wrap and cut wires").DeleteLoop = False
 		self.WireLinked = False
 		obj.Proxy = self
@@ -643,7 +690,7 @@ class WrapLeadingEdge:
 				pt = DiscretizedPoint(wire, end)
 				pts.append(pt)
 				nbp += 1
-				nbwire = len(wire.Points)
+				nbwire = len(wire.Shape.Vertexes)
 #				msgCsl("int(start): " + str(int(start)) + " int(end): " + str(int(end)))
 #				msgCsl("nbwire: " + str(nbwire) + " nbp: " + str(nbp))
 				if (int(start) + nbp) > (nbwire - 1):  # end point is on the last edge
@@ -680,7 +727,7 @@ class WrapLeadingEdge:
 				pts2.append(pts[i])
 #			if end > int(end):
 #				pts2.append(pts[nbp])
-			for i in range(int(end) + 1, len(wire.Points), +1):
+			for i in range(int(end) + 1, len(wire.Shape.Vertexes), +1):
 				pts2.append(wire.Shape.Vertexes[i].Point)
 		return pts2
 
@@ -835,7 +882,7 @@ class LeadingEdge:
 		self.updatePlane(fp)
 		mplane = fp.Plane
 		startindex = int(fp.TipStartPoint)
-		for i in range(startindex + 1, len(fp.TipWire.Points) - 1, +1):
+		for i in range(startindex + 1, len(fp.TipWire.Shape.Vertexes) - 1, +1):
 			intersectPt = intersecLinePlane(fp.TipWire.Shape.Vertexes[i].Point, fp.TipWire.Shape.Vertexes[i + 1].Point, mplane.Shape)
 			vec1 = PtsToVec(intersectPt, fp.TipWire.Shape.Vertexes[i].Point)
 			vec2 = PtsToVec(intersectPt, fp.TipWire.Shape.Vertexes[i + 1].Point)
@@ -921,8 +968,8 @@ class CutWire:
 		obj.addProperty("App::PropertyLink","Wire","Wire", "")
 		obj.addProperty("App::PropertyFloat","StartPoint", "Wire","Start point of the root wire").StartPoint = 0.0
 		obj.addProperty("App::PropertyFloat","EndPoint", "Wire","End point of the root wire").EndPoint = 0.0
-		obj.addProperty("App::PropertyLink","StartPointObj","Wire","", -1)
-		obj.addProperty("App::PropertyLink","EndPointObj","Wire","", -1)
+		obj.addProperty("App::PropertyLink","StartPointObj","Wire","", 0, True, True)
+		obj.addProperty("App::PropertyLink","EndPointObj","Wire","", 0, True, True)
 		obj.addProperty("App::PropertyLink","LeftCut","Wire","", 1)
 		obj.addProperty("App::PropertyLink","RightCut","Wire","", 1)
 		obj.addProperty("App::PropertyEnumeration", "CutType", "CutPlane", "Define wire to be created").CutType = ["Left", "Right", "Both"]

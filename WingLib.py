@@ -108,7 +108,7 @@ def curveVec(wire, index, mtype):
 	
 def DiscretizedPoint(wire, value):
 	medge = wire.Shape.Edges[int(value)]
-	fract = int((round(value,2) - int(value))*100)
+	fract = abs(int((round(value,2) - int(value))*100))
 	if fract > 0:
 		ptsdis = medge.discretize(101)
 		pt = ptsdis[fract]
@@ -135,7 +135,7 @@ def cutWire(wire, start, end, type):  # start and end are represent wire.Vertexe
 		if fracstart > 0:   # if 'start' point has decimal, one should add the intermediate point of 'first' edge
 			ptsleft.append(DiscretizedPoint(wire, start))
 		ptsleft.append(DiscretizedPoint(wire, end))  # next point is 'end' point or the intermediate point of 'last' edge
-		for i in range(intend + 1, len(wire.Points), + 1):  # first point of the loop is always the following point of 'end' point
+		for i in range(intend + 1, len(wire.Shape.Vertexes), + 1):  # first point of the loop is always the following point of 'end' point
 			ptsleft.append(wire.Shape.Vertexes[i].Point)
 	return ptsleft, ptsright
 	
